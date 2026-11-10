@@ -68,7 +68,7 @@ uv run ruff format --check .
 
 ## 문서
 
-- 명세서: [docs/spec](docs/spec/README.md)
+- 명세서: [docs/spec](docs/spec/README.md) (구현하며 달라진 점은 [구현 반영 사항](docs/spec/14_구현_반영_사항.md))
 - 구현 순서: [docs/implementation-plan.md](docs/implementation-plan.md)
 - 단계별 구현 기록: `docs/` 아래 `video-filters.md`, `channel-filters.md`, `search-pipeline.md`,
   `users-and-limits.md`, `personalization.md`, `10-1b-search-ui.md`, `10-2-personal-ui.md`

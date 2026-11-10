@@ -34,5 +34,6 @@ API 명세서 (tube-filter)
 | 검색 기록 | 검색 기록 목록 | GET | /api/v1/history | 최근 검색 기록(최대 50) | hist-001<br>hist-002 | 회원 | 브라우저 | - | 200<br>[{"id": 9, "keyword": "…", "conditions": {…}, "resultCount": 12, "searchedAt": "…"}] | 401 | FNC-P-007 |
 |  | 검색 기록 삭제 | DELETE | /api/v1/history/{id} | 기록 1건 삭제(id 대신 all이면 전체) | hist-002 | 회원 | 브라우저 | - | 204 | 404 HISTORY_NOT_FOUND | FNC-P-007 |
 | 화면(HTML) | 화면 경로 | GET | / , /login, /signup, /channels/{id}, /presets, /favorites, /history, /me, /privacy, /terms | 서버가 Jinja2로 그리는 화면 | - | 화면별(화면 기능 명세서) | 브라우저 | - | 200 text/html | 401 → /login 이동 | FNC-X-002 |
-| 운영 | 상태 확인 | GET | /health | 서버·DB 상태 | - | 공개 | 점검 도구 | - | 200<br>{"status": "ok"} | 503 | - |
+| 운영 | 상태 확인 | GET | /api/v1/health | 서버 기동 상태(DB 연결은 확인하지 않음) | - | 공개 | 점검 도구 | - | 200<br>{"status": "ok"} | - | - |
+| 회원 | CSRF 토큰 발급 | GET | /api/v1/auth/csrf | 변경 요청용 CSRF 토큰 발급(구현 중 추가) | sec-005 | 공개 | 화면 | - | 200/{"csrfToken": "..."} (Cache-Control: no-store) | - | - |
 | 참고: 경로는 컨텍스트 경로 없이 쓴 값. YouTube Data API v3 호출 사양(외부 API)은 ‘설정·규약’의 ‘YouTube API 쿼터 비용’ 참고. |  |  |  |  |  |  |  |  |  |  |  |
