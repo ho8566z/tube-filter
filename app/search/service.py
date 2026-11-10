@@ -14,6 +14,7 @@ from app.cache.entity_cache import EntityCache
 from app.cache.search_cache import SearchResultCache
 from app.db import get_db
 from app.errors import DomainError
+from app.history.service import record_search
 from app.models import ChannelCache, QuotaUsage, SearchCache
 from app.quota.clock import next_reset
 from app.quota.estimate import estimate
@@ -181,12 +182,16 @@ class SearchService:
             lookup.videos, lookup.rows, channels, self.clock(), activities
         ), lookup.warnings
 
-    async def execute(self, conditions, *, on_new_search=lambda: None):
+    async def execute(self, conditions, *, on_new_search=lambda: None, user_id=None):
         now, db = self.clock(), self.db
         row = self.search_cache.get(db, conditions.data)
         if row is not None:
             items, extra_warnings = await self.result_items(row, cache_only=True)
-            return self.response(row, paginate(items), True, 0, extra_warnings)
+            response = self.response(row, paginate(items), True, 0, extra_warnings)
+            record_search(
+                db, user_id, conditions.data, response["page"]["totalElements"], now
+            )
+            return response
         on_new_search()
         search_id = uuid4().hex
         ids, warnings = await fetch_candidates(
@@ -293,7 +298,9 @@ class SearchService:
         )
         db.commit()
         items = render_items(videos, lookup.rows, channels, now, activities)
-        return self.response(row, paginate(items), False, spent)
+        response = self.response(row, paginate(items), False, spent)
+        record_search(db, user_id, conditions.data, len(items), now)
+        return response
 
     def response(self, row, page, cached, spent, extra_warnings=()):
         now = self.clock()
@@ -334,7 +341,9 @@ class SearchService:
 def get_service(
     request: Request, db: Session = Depends(get_db), adapter=Depends(get_youtube)
 ):
-    return SearchService(db, adapter, request.app.state.settings)
+    return SearchService(
+        db, adapter, request.app.state.settings, clock=request.app.state.clock
+    )
 
 
 @router.post("/estimate")
@@ -348,10 +357,12 @@ def estimate_search(body: dict, service=Depends(get_service)):
 @router.post("")
 def execute_search(body: dict, request: Request, service=Depends(get_service)):
     # A sync route keeps the complete Session lifecycle on its worker thread.
+    user = current_user(request, service.db)
     return asyncio.run(
         service.execute(
             normalize(body, now=service.clock()),
             on_new_search=lambda: new_search_hook(request),
+            user_id=user.id if user else None,
         )
     )
 

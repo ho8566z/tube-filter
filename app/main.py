@@ -9,9 +9,12 @@ from sqlalchemy.orm import sessionmaker
 from app.config import Settings
 from app.db import create_db_engine
 from app.errors import register_error_handlers
+from app.favorites.service import router as favorites_router
+from app.history.service import router as history_router
 from app.jobs.cleanup import run_cleanup, schedule_cleanup
 from app.limits.limiter import Limiter
 from app.meta.service import router as meta_router
+from app.presets.service import router as presets_router
 from app.quota.guard import QuotaGuard
 from app.quota.status import router as quota_router
 from app.search.service import router as search_router
@@ -57,6 +60,9 @@ app.include_router(search_router)
 app.include_router(meta_router)
 app.include_router(auth_router)
 app.include_router(users_router)
+app.include_router(presets_router)
+app.include_router(favorites_router)
+app.include_router(history_router)
 
 
 @app.get("/api/v1/health")
