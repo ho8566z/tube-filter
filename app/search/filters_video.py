@@ -11,6 +11,7 @@ from decimal import Decimal
 from fractions import Fraction
 from typing import Literal
 
+from app.search.metrics import ratio
 from app.search.video_info import VideoInfo
 from app.time_utils import to_kst
 
@@ -30,6 +31,13 @@ FilterName = Literal[
     "WEEKDAY",
     "HOUR",
     "SHORTS",
+    "SUBSCRIBERS",
+    "VIEWS_PER_SUB",
+    "VIDEO_COUNT",
+    "AVG_VIEWS",
+    "CHANNEL_AGE",
+    "CHANNEL_COUNTRY",
+    "ACTIVITY",
 ]
 Number = int | float | Decimal
 
@@ -109,18 +117,14 @@ def filter_rate(
 ) -> FilterResult:
     """FNC-F-004: compare exact percent, without display rounding.
 
-    Only the predicate's ratio is evaluated here. Shared output metrics and
-    their presentation remain stage 5 (FNC-S-009).
+    Reuses the shared exact ratio calculation. Rounded display metrics are
+    produced separately by metrics.calculate_metrics (FNC-S-009).
     """
     name, numerator = {
         "like_rate": ("LIKE_RATE", video.like_count),
         "comment_rate": ("COMMENT_RATE", video.comment_count),
     }[field]
-    value = (
-        Fraction(numerator * 100, video.view_count)
-        if numerator is not None and video.view_count
-        else None
-    )
+    value = ratio(numerator, video.view_count, percent=True)
     return _range_result(name, value, bounds)
 
 

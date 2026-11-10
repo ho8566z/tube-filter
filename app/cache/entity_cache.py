@@ -1,5 +1,6 @@
-"""Fresh entity reads and replacement writes; fetching belongs to stage 6."""
+"""Fresh entity reads and replacement writes; services fetch cache misses."""
 
+import json
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
 
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.models import ChannelCache, VideoCache
+from app.search.metrics import ChannelActivity
 from app.time_utils import to_utc, utc_now
 
 
@@ -54,3 +56,40 @@ class EntityCache:
 
     def save_channels(self, db: Session, channels: Sequence[ChannelCache]) -> None:
         self._save(db, channels)
+
+    def get_channel_activity(
+        self, db: Session, channel_ids: Sequence[str]
+    ) -> dict[str, ChannelActivity]:
+        """Activity freshness is independent of channel statistics freshness."""
+        if not channel_ids:
+            return {}
+        cutoff = to_utc(self.clock()) - min(self.ttl, self.max_age)
+        rows = db.scalars(
+            select(ChannelCache).where(
+                ChannelCache.channel_id.in_(channel_ids),
+                ChannelCache.recent_fetched_at > cutoff,
+                ChannelCache.recent_uploads.is_not(None),
+            )
+        )
+        return {
+            row.channel_id: ChannelActivity(
+                tuple(
+                    to_utc(datetime.fromisoformat(value))
+                    for value in json.loads(row.recent_uploads)
+                )
+            )
+            for row in rows
+        }
+
+    def save_channel_activity(
+        self, db: Session, channel_id: str, activity: ChannelActivity
+    ) -> None:
+        """Do not renew fetched_at: activity does not refresh channel statistics."""
+        row = db.get(ChannelCache, channel_id)
+        if row is None or activity.upload_dates is None:
+            return
+        row.recent_uploads = json.dumps(
+            [to_utc(value).isoformat() for value in activity.upload_dates]
+        )
+        row.recent_fetched_at = to_utc(self.clock())
+        db.flush()
