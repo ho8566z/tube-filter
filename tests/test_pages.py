@@ -207,11 +207,12 @@ def test_static_files(client, path, mime):
     assert response.text
 
 
-@pytest.mark.parametrize(
-    "path", ["/presets", "/favorites", "/history", "/me", "/channels/test"]
-)
-def test_later_screens_are_not_implemented(client, path):
-    assert client.get(path).status_code == 404
+@pytest.mark.parametrize("path", ["/presets", "/favorites", "/history", "/me"])
+def test_member_screens_redirect_guest(client, path):
+    response = client.get(path, follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+    assert "로그인" in client.get(path).text
 
 
 def test_search_filter_groups_and_controls(client):
@@ -327,7 +328,8 @@ def test_search_filter_groups_and_controls(client):
         elements.attrs("canvas", id=chart)
     assert "YouTube 제공 지표가 아님" in response.text
     assert "검색된 후보 안에서만 걸러낸 결과" in response.text
-    assert "다음 단계에서 제공" in response.text
+    for button in ("load-presets", "save-preset", "submit-preset", "cancel-preset"):
+        assert "disabled" not in elements.attrs("button", id=button)
 
 
 def test_search_scripts_player_and_vendor_serving(client):
@@ -361,3 +363,76 @@ def test_search_scripts_player_and_vendor_serving(client):
     assert "[A-Za-z0-9_-]{11}" in js
     assert 'addEventListener("cancel"' in js
     assert 'addEventListener("close"' in js
+
+
+def test_personal_screens_html_and_assets(client):
+    headers = {"X-CSRF-Token": token(client.get("/signup"))}
+    body = {
+        "loginId": "member01",
+        "password": "password123",
+        "passwordConfirm": "password123",
+        "agreePrivacy": True,
+    }
+    assert (
+        client.post("/api/v1/auth/signup", json=body, headers=headers).status_code
+        == 201
+    )
+    assert (
+        client.post("/api/v1/auth/login", json=body, headers=headers).status_code == 200
+    )
+    for path, heading, ids in (
+        ("/presets", "프리셋 관리", ["personal-list", "confirm-action"]),
+        (
+            "/favorites",
+            "즐겨찾기",
+            ["personal-list", "favorites-prev", "favorites-next"],
+        ),
+        ("/history", "검색 기록", ["personal-list", "clear-history"]),
+        ("/me", "내 정보", ["password-form", "withdraw-modal", "withdraw-form"]),
+        (
+            "/channels/UC-test",
+            "채널 상세",
+            ["channel-summary", "monthly-chart", "channel-heatmap", "personal-list"],
+        ),
+    ):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/html")
+        assert response.headers["cache-control"] == "no-store"
+        assert f"<h1>{heading}</h1>" in response.text
+        elements = Elements(response.text)
+        for element_id in ids:
+            assert any(attrs.get("id") == element_id for _, attrs in elements.tags)
+        scripts = [attrs["src"] for tag, attrs in elements.tags if tag == "script"]
+        assert [url.split("/static/")[1] for url in scripts] == [
+            "js/common.js",
+            "vendor/chart.umd.js",
+            "js/search.js",
+            "js/personal.js",
+        ]
+        for url in scripts:
+            assert client.get(url).status_code == 200
+    me = Elements(client.get("/me").text)
+    for name in ("currentPassword", "newPassword", "newPasswordConfirm", "password"):
+        assert me.attrs("input", name=name)["type"] == "password"
+    assert "즉시 삭제되며 복구할 수 없습니다" in client.get("/me").text
+    js = client.get("/static/js/personal.js").text
+    assert "innerHTML" not in js
+    assert "confirm(" not in js and "alert(" not in js
+    assert "window.tubeFilter.api" in js
+    # A stale member session must also pass through the HTML login guard.
+    now = app.state.clock()
+    app.state.clock = lambda: now + timedelta(seconds=SESSION_SECONDS)
+    for path in ("/presets", "/favorites", "/history", "/me"):
+        assert client.get(path, follow_redirects=False).headers["location"] == "/login"
+
+
+def test_channel_shell_is_public_and_escapes_channel_id(client):
+    response = client.get("/channels/UC-test")
+    assert response.status_code == 200
+    elements = Elements(response.text)
+    assert elements.attrs("section", id="personal-page")["data-channel-id"] == "UC-test"
+    assert "최근 50개 영상만 반영" in response.text
+    response = client.get("/channels/%22%3E%3Cscript%3E")
+    assert 'data-channel-id="&' in response.text
+    assert "<script>" not in response.text

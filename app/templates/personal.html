@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block scripts %}
+<script src="{{ url_for('static', path='/vendor/chart.umd.js') }}" defer></script>
+<script src="{{ url_for('static', path='/js/search.js') }}" defer></script>
+<script src="{{ url_for('static', path='/js/personal.js') }}" defer></script>
+{% endblock %}
+{% block content %}
+<section id="personal-page" data-page="{% block page %}{% endblock %}" {% if channel_id %}data-channel-id="{{ channel_id }}"{% endif %}>
+{% block screen %}{% endblock %}
+<p id="page-message" role="status"></p>
+<button id="retry-page" type="button" hidden>다시 불러오기</button>
+</section>
+<dialog id="confirm-action" aria-labelledby="confirm-title">
+  <h2 id="confirm-title">삭제 확인</h2><p id="confirm-message"></p>
+  <button id="confirm-yes" type="button">삭제</button><button id="confirm-no" type="button">취소</button>
+</dialog>
+{% include "player.html" %}
+{% endblock %}

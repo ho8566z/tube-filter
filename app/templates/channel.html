@@ -1,0 +1,11 @@
+{% extends "personal.html" %}
+{% block title %}채널 상세{% endblock %}
+{% block page %}channel{% endblock %}
+{% block screen %}
+<h1>채널 상세</h1><section id="channel-summary" class="panel" aria-label="채널 정보"></section>
+<p id="page-warnings" class="warning" hidden></p>
+<section id="channel-pattern"><h2>업로드 패턴</h2><p>최근 50개 영상만 반영 · 한국 시간 (KST) 기준</p>
+<h3>월별 업로드</h3><div class="chart-wrap"><canvas id="monthly-chart" aria-label="월별 업로드 막대 차트" role="img"></canvas></div><div id="monthly-table" class="table-scroll"></div>
+<h3>요일×시간대 업로드</h3><div class="chart-wrap"><canvas id="channel-heatmap" aria-label="요일×시간대 히트맵" role="img"></canvas></div><div id="channel-heatmap-table" class="table-scroll"></div></section>
+<h2>최근 업로드 영상</h2><div id="personal-list"></div>
+{% endblock %}

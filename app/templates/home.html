@@ -89,8 +89,9 @@
           {{ select('channel.activity.lastUploadWithinDays','마지막 업로드',[('','상관없음'),('30','30일 이내'),('60','60일 이내'),('90','90일 이내')]) }}
           <small>채널마다 1 unit, 한 번에 최대 50채널까지만 확인합니다. 견적에 최대 +50 units 반영.</small>
         </fieldset>
-        <div class="actions"><button type="button" disabled>프리셋 불러오기</button><button type="button" disabled>프리셋 저장</button></div>
-        <small>{% if not user %}로그인 후 이용할 수 있습니다. {% endif %}프리셋 기능은 다음 단계에서 제공됩니다.</small>
+        <div class="actions"><button type="button" id="load-presets">프리셋 불러오기</button><button type="button" id="save-preset">프리셋 저장</button></div>
+        <p id="preset-message" role="status"></p><div id="preset-options" hidden></div>
+        <div id="preset-save" hidden><label>프리셋 이름<input id="preset-name" maxlength="30"></label><button type="button" id="submit-preset">저장</button><button type="button" id="cancel-preset">취소</button></div>
       </div>
     </details>
     <section id="results" aria-label="검색 결과" aria-busy="false">
@@ -122,6 +123,6 @@
     </section>
   </div>
 </form>
-<dialog id="player-modal" aria-labelledby="player-title"><div class="actions"><h2 id="player-title">영상 재생</h2><button type="button" id="close-player">닫기</button></div><div id="player-container"></div><p id="player-message"></p><a id="player-link" target="_blank" rel="noopener noreferrer">YouTube에서 보기</a></dialog>
+{% include "player.html" %}
 <noscript><p class="notice">검색과 재생 기능을 사용하려면 JavaScript를 켜 주세요.</p></noscript>
 {% endblock %}

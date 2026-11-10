@@ -9,7 +9,7 @@
   <script src="{{ url_for('static', path='/js/common.js') }}" defer></script>
   {% block scripts %}{% endblock %}
 </head>
-<body>
+<body data-member="{{ 'true' if user else 'false' }}">
   <a class="skip-link" href="#content">본문으로 건너뛰기</a>
   <header class="site-header">
     <div class="header-row">

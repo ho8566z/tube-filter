@@ -1,0 +1,19 @@
+{% extends "personal.html" %}
+{% block title %}내 정보{% endblock %}
+{% block page %}me{% endblock %}
+{% block screen %}
+<h1>내 정보</h1><p id="account-info"></p>
+<form id="password-form" class="panel" method="post">
+<h2>비밀번호 변경</h2>
+{% for name, label in [('currentPassword','현재 비밀번호'),('newPassword','새 비밀번호'),('newPasswordConfirm','새 비밀번호 확인')] %}
+<label>{{ label }}<input type="password" name="{{ name }}" required {% if name != 'currentPassword' %}minlength="8" maxlength="64" autocomplete="new-password"{% else %}autocomplete="current-password"{% endif %}></label>
+<p class="error" id="{{ name }}-error" role="status"></p>
+{% endfor %}
+<p>새 비밀번호는 영문과 숫자를 포함한 8~64자 (UTF-8 72바이트 이하)입니다.</p><button type="submit">비밀번호 변경</button>
+</form>
+<section class="panel"><h2>회원 탈퇴</h2><button id="open-withdraw" type="button">회원 탈퇴</button></section>
+<dialog id="withdraw-modal" aria-labelledby="withdraw-title">
+<h2 id="withdraw-title">회원 탈퇴 확인</h2><p>프리셋·즐겨찾기·검색 기록이 즉시 삭제되며 복구할 수 없습니다.</p>
+<form id="withdraw-form" method="post"><label>현재 비밀번호 재입력<input type="password" name="password" autocomplete="current-password" required></label><p id="password-error" class="error" role="status"></p><button type="submit">탈퇴 확정</button><button id="cancel-withdraw" type="button">취소</button></form>
+</dialog>
+{% endblock %}

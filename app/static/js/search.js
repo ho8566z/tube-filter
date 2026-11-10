@@ -53,14 +53,7 @@ window.tubeSearch = (() => {
     if (Object.keys(channel.activity).length) channel.activity.windowDays = Number(get("channel.activity.windowDays"));
     return {keyword: get("keyword").trim(), pages: Number(get("pages")), order: get("order"), published: object(["after", "before"], "published"), video, channel};
   }
-  return {formBody, duration, validVideoId, embedUrl, videoRanges, channelRanges};
-})();
-
-(() => {
-  const form = document.getElementById("search-form");
-  if (!form) return;
   const $ = id => document.getElementById(id);
-  const control = name => form.elements.namedItem(name);
   const api = (path, options) => window.tubeFilter.api(path, options);
   const node = (tag, text, className) => {
     const el = document.createElement(tag);
@@ -73,6 +66,136 @@ window.tubeSearch = (() => {
     timeZone: "Asia/Seoul", dateStyle: "medium", timeStyle: "short", hourCycle: "h23",
   }).format(new Date(value)) + " (KST)" : "비공개";
   const minute = n => n == null ? "비공개" : `${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}`;
+  let favoriteSnapshot;
+  const favoriteStates = new Map();
+  async function favoriteIds() {
+    if (!favoriteSnapshot) favoriteSnapshot = (async () => {
+      for (let page = 0; ; page++) {
+        const result = await api(`/api/v1/favorites?page=${page}&size=50`);
+        result.items.forEach(item => { if (!favoriteStates.has(item.videoId)) favoriteStates.set(item.videoId, true); });
+        if (page + 1 >= result.totalPages) break;
+      }
+    })().catch(error => { favoriteSnapshot = null; throw error; });
+    await favoriteSnapshot;
+  }
+  function favoriteButton(videoId, saved = null, removed) {
+    const button = node("button"); button.type = "button";
+    if (saved !== null) favoriteStates.set(videoId, saved);
+    const paint = () => { button.textContent = saved ? "★ 즐겨찾기 해제" : "☆ 즐겨찾기"; button.setAttribute("aria-pressed", String(Boolean(saved))); };
+    paint();
+    if (saved === null && document.body?.dataset.member === "true") {
+      button.disabled = true;
+      favoriteIds().then(() => { saved = favoriteStates.get(videoId) || false; paint(); })
+        .catch(error => { $("global-message").textContent = error.message; })
+        .finally(() => { button.disabled = false; });
+    }
+    button.addEventListener("click", async () => {
+      if (document.body.dataset.member !== "true") {
+        $("global-message").replaceChildren(node("span", "로그인 후 이용할 수 있습니다. "));
+        const link = node("a", "로그인"); link.href = "/login"; $("global-message").append(link); return;
+      }
+      button.disabled = true;
+      try {
+        if (saved === null) { await favoriteIds(); saved = favoriteStates.get(videoId) || false; }
+        await api(`/api/v1/favorites/${encodeURIComponent(videoId)}`, {method: saved ? "DELETE" : "PUT"});
+        saved = !saved; favoriteStates.set(videoId, saved); paint(); if (!saved) await removed?.();
+      } catch (error) { if (error.status === 401) window.location.assign("/login"); else $("global-message").textContent = error.message; }
+      finally { button.disabled = false; }
+    });
+    return button;
+  }
+  function openPlayer(item) {
+    const url = window.tubeSearch.embedUrl(item.videoId);
+    if (!url) { $("search-error").textContent = "영상 ID 형식이 올바르지 않습니다."; return; }
+    $("player-container").replaceChildren();
+    $("player-title").textContent = item.title || "영상 재생";
+    $("player-link").href = `https://www.youtube.com/watch?v=${item.videoId}`;
+    $("player-message").textContent = "재생할 수 없는 경우 YouTube에서 보기를 이용하세요.";
+    if (item.embeddable !== false) {
+      const frame = node("iframe"); frame.src = url; frame.title = item.title || "YouTube 영상 재생";
+      frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
+      frame.allowFullscreen = true; frame.referrerPolicy = "strict-origin-when-cross-origin";
+      $("player-container").append(frame);
+    } else $("player-message").textContent = "임베드할 수 없는 영상입니다. YouTube에서 확인하세요.";
+    $("player-modal").showModal();
+  }
+  $("close-player")?.addEventListener("click", () => { $("player-container").replaceChildren(); $("player-modal").close(); });
+  $("player-modal")?.addEventListener("close", () => $("player-container").replaceChildren());
+  $("player-modal")?.addEventListener("cancel", () => $("player-container").replaceChildren());
+  function videoCard(item, saved = null, removed) {
+    if (item.available === false) {
+      const card = node("article", undefined, "video-card");
+      card.append(node("h3", item.title || "영상 정보를 불러오지 못했습니다."), favoriteButton(item.videoId, true, removed));
+      return card;
+    }
+    const card = node("article", undefined, "video-card");
+    if (window.tubeSearch.validVideoId(item.videoId)) card.id = `video-${item.videoId}`;
+    card.tabIndex = -1;
+    if (item.thumbnailUrl) {
+      try { const url = new URL(item.thumbnailUrl); if (url.protocol === "https:" && ["i.ytimg.com", "img.youtube.com"].includes(url.hostname)) { const img = node("img"); img.src = url.href; img.alt = ""; img.loading = "lazy"; card.append(img); } } catch { /* Ignore invalid thumbnail URLs. */ }
+    }
+    card.append(node("h3", item.title || "제목 없음"));
+    const channel = node("a", item.channelTitle || "비공개");
+    if (item.channelId) channel.href = `/channels/${encodeURIComponent(item.channelId)}`;
+    card.append(channel);
+    card.append(node("p", `게시일 ${date(item.publishedAt)} · 길이 ${minute(item.durationSec)}`));
+    const dl = node("dl");
+    for (const [label, value, calc] of [["조회수",item.stats.views], ["좋아요",item.stats.likes], ["댓글",item.stats.comments], ["구독자",item.channel.subscribers], ["좋아요율 (%)",item.calc.likeRatePct,true], ["댓글 참여율 (%)",item.calc.commentRatePct,true], ["구독자 대비 조회수 (%)",item.calc.viewsPerSubPct,true]]) {
+      const group = node("div"), dt = node("dt", label);
+      if (calc) dt.append(node("span", "계산값 · YouTube 제공 지표가 아님", "badge"));
+      group.append(dt, node("dd", number(value))); dl.append(group);
+    }
+    card.append(dl);
+    const actions = node("div", undefined, "actions");
+    if (window.tubeSearch.validVideoId(item.videoId)) {
+      if (item.embeddable !== false) { const play = node("button", "재생"); play.type = "button"; play.addEventListener("click", () => openPlayer(item)); actions.append(play); }
+      const link = node("a", "YouTube에서 보기"); link.href = `https://www.youtube.com/watch?v=${item.videoId}`; link.target = "_blank"; link.rel = "noopener noreferrer"; actions.append(link);
+    }
+    actions.append(favoriteButton(item.videoId, saved, removed)); card.append(actions);
+    return card;
+  }
+  function applyConditions(form, data, chip) {
+    const keyword = form.elements.namedItem("keyword").value;
+    form.reset();
+    form.elements.namedItem("keyword").value = data.keyword ?? keyword;
+    const get = name => name.split(".").reduce((value, key) => value?.[key], data);
+    const day = value => value ? new Intl.DateTimeFormat("sv-SE", {timeZone:"Asia/Seoul", year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date(value)) : "";
+    for (const el of Array.from(form.elements)) {
+      if (!el.name || el.name === "keyword" || el.name.startsWith("result")) continue;
+      const value = get(el.name);
+      if (el.type === "checkbox" || el.type === "radio") el.checked = Array.isArray(value) ? value.includes(Number(el.value)) : el.type === "radio" ? value === el.value : Boolean(value);
+      else if (el.multiple) for (const option of el.options) option.selected = (value || []).map(v => String(v ?? "__unset__")).includes(option.value);
+      else if (value != null && typeof value !== "object") el.value = el.type === "date" ? day(value) : el.name.startsWith("video.durationSec.") ? minute(value) : String(value);
+      else if (el.tagName === "INPUT") el.value = "";
+    }
+    const set = (name, value) => { const el = form.elements.namedItem(name); if (el) el.value = value ?? ""; };
+    const created = data.channel?.created || {}, restricted = data.video?.excludeRestricted || {};
+    set("createdMode", created.withinDays != null ? "withinDays" : created.before ? "before" : "");
+    set("createdDays", created.withinDays); set("createdBefore", day(created.before));
+    form.elements.namedItem("restrictEnabled").checked = Boolean(restricted.country);
+    form.elements.namedItem("anyRestriction").checked = Boolean(restricted.anyRestriction);
+    set("restrictedCountry", restricted.country || "KR");
+    for (const field of form.querySelectorAll("[data-chips]")) {
+      field.querySelector(".chips").replaceChildren();
+      const input = field.querySelector("[data-chip-input]"); input.value = "";
+      for (const value of get(field.dataset.chips) || []) { input.value = value; chip(field); }
+    }
+    for (const slider of form.querySelectorAll("[data-sync]")) {
+      const value = get(slider.dataset.sync);
+      slider.value = value == null ? slider.defaultValue : String(Math.min(Number(slider.max), value));
+    }
+    for (const input of form.querySelectorAll("[data-count]")) input.dispatchEvent(new Event("input", {bubbles:true}));
+  }
+  return {formBody, duration, validVideoId, embedUrl, videoRanges, channelRanges, videoCard, node, date, number, minute, applyConditions};
+})();
+
+(() => {
+  const form = document.getElementById("search-form");
+  if (!form) return;
+  const $ = id => document.getElementById(id);
+  const control = name => form.elements.namedItem(name);
+  const api = (path, options) => window.tubeFilter.api(path, options);
+  const {node, number, date, minute} = window.tubeSearch;
   let searchId = null, currentPage = null, busy = false, pageVersion = 0, analysisVersion = 0;
   let estimateTimer, estimateVersion = 0, scatterChart, heatmapChart, scatterData = [];
   let metaVersion = 0;
@@ -225,24 +348,6 @@ window.tubeSearch = (() => {
     form.querySelectorAll("[data-number-hint], [data-error]").forEach(el => { el.textContent = ""; });
     scheduleEstimate();
   });
-  function openPlayer(item) {
-    const url = window.tubeSearch.embedUrl(item.videoId);
-    if (!url) { $("search-error").textContent = "영상 ID 형식이 올바르지 않습니다."; return; }
-    $("player-container").replaceChildren();
-    $("player-title").textContent = item.title || "영상 재생";
-    $("player-link").href = `https://www.youtube.com/watch?v=${item.videoId}`;
-    $("player-message").textContent = "재생할 수 없는 경우 YouTube에서 보기를 이용하세요.";
-    if (item.embeddable !== false) {
-      const frame = node("iframe"); frame.src = url; frame.title = item.title || "YouTube 영상 재생";
-      frame.allow = "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share";
-      frame.allowFullscreen = true; frame.referrerPolicy = "strict-origin-when-cross-origin";
-      $("player-container").append(frame);
-    } else $("player-message").textContent = "임베드할 수 없는 영상입니다. YouTube에서 확인하세요.";
-    $("player-modal").showModal();
-  }
-  $("close-player").addEventListener("click", () => { $("player-container").replaceChildren(); $("player-modal").close(); });
-  $("player-modal").addEventListener("close", () => $("player-container").replaceChildren());
-  $("player-modal").addEventListener("cancel", () => $("player-container").replaceChildren());
   function showWarnings(warnings = []) {
     const messages = {PARTIAL_FAILURE: "일부 정보를 불러오지 못했습니다.", STALE_STATS: "쿼터 제한으로 저장된 통계를 표시합니다.", ACTIVITY_LIMIT: "활동 확인 한도 50채널을 초과한 채널은 제외되었습니다."};
     $("warnings").textContent = warnings.map(w => messages[w] || String(w)).join(" · ");
@@ -252,31 +357,7 @@ window.tubeSearch = (() => {
     currentPage = page;
     $("video-list").replaceChildren();
     for (const item of page.items) {
-      const card = node("article", undefined, "video-card");
-      if (window.tubeSearch.validVideoId(item.videoId)) card.id = `video-${item.videoId}`;
-      card.tabIndex = -1;
-      if (item.thumbnailUrl) {
-        try { const url = new URL(item.thumbnailUrl); if (url.protocol === "https:" && ["i.ytimg.com", "img.youtube.com"].includes(url.hostname)) { const img = node("img"); img.src = url.href; img.alt = ""; img.loading = "lazy"; card.append(img); } } catch { /* Ignore invalid thumbnail URLs. */ }
-      }
-      card.append(node("h3", item.title || "제목 없음"));
-      const channel = node("a", item.channelTitle || "비공개");
-      channel.setAttribute("role", "link"); channel.setAttribute("aria-disabled", "true"); channel.title = "채널 상세는 다음 단계에서 제공됩니다.";
-      card.append(channel);
-      card.append(node("p", `게시일 ${date(item.publishedAt)} · 길이 ${minute(item.durationSec)}`));
-      const dl = node("dl");
-      for (const [label, value, calc] of [["조회수",item.stats.views], ["좋아요",item.stats.likes], ["댓글",item.stats.comments], ["구독자",item.channel.subscribers], ["좋아요율 (%)",item.calc.likeRatePct,true], ["댓글 참여율 (%)",item.calc.commentRatePct,true], ["구독자 대비 조회수 (%)",item.calc.viewsPerSubPct,true]]) {
-        const group = node("div"), dt = node("dt", label);
-        if (calc) dt.append(node("span", "계산값 · YouTube 제공 지표가 아님", "badge"));
-        group.append(dt, node("dd", number(value))); dl.append(group);
-      }
-      card.append(dl);
-      const actions = node("div", undefined, "actions");
-      if (window.tubeSearch.validVideoId(item.videoId)) {
-        if (item.embeddable !== false) { const play = node("button", "재생"); play.type = "button"; play.addEventListener("click", () => openPlayer(item)); actions.append(play); }
-        const link = node("a", "YouTube에서 보기"); link.href = `https://www.youtube.com/watch?v=${item.videoId}`; link.target = "_blank"; link.rel = "noopener noreferrer"; actions.append(link);
-      }
-      const favorite = node("button", "☆ 즐겨찾기"); favorite.type = "button"; favorite.disabled = true; favorite.title = "로그인 후 이용 · 다음 단계에서 제공"; actions.append(favorite); card.append(actions);
-      $("video-list").append(card);
+      $("video-list").append(window.tubeSearch.videoCard(item));
     }
     $("page-status").textContent = `전체 ${number(page.totalElements)}개 · ${page.totalPages ? page.page + 1 : 0} / ${page.totalPages}쪽`;
     $("search-state").textContent = page.totalElements ? `${number(page.totalElements)}개의 영상을 찾았습니다.` : "검색 결과가 없습니다. 필터 조건을 완화해 보세요.";
@@ -423,5 +504,66 @@ window.tubeSearch = (() => {
   const mobile = window.matchMedia("(max-width: 760px)");
   $("filter-panel").open = !mobile.matches;
   mobile.addEventListener("change", event => { $("filter-panel").open = !event.matches; });
-  loadMeta();
+  const metaReady = loadMeta();
+  async function applyLoaded(conditions) {
+    await metaReady;
+    // Load the saved region before restoring selections from that region.
+    control("video.regionCode").value = conditions.video?.regionCode || "KR";
+    await loadMeta();
+    window.tubeSearch.applyConditions(form, conditions, addChip);
+    fields.forEach(el => { el.textContent = ""; });
+    $("preset-message").textContent = "필터를 불러왔습니다. 검색을 눌러 실행하세요";
+    scheduleEstimate();
+  }
+  function memberOnly() {
+    if (document.body.dataset.member === "true") return true;
+    $("preset-message").replaceChildren(node("span", "로그인 후 이용할 수 있습니다. "));
+    const link = node("a", "로그인"); link.href = "/login"; $("preset-message").append(link); return false;
+  }
+  const presetError = error => { if (error.status === 401) window.location.assign("/login"); else $("preset-message").textContent = error.message; };
+  $("save-preset").addEventListener("click", () => { if (memberOnly()) { $("preset-save").hidden = false; $("preset-name").focus(); } });
+  $("cancel-preset").addEventListener("click", () => { $("preset-save").hidden = true; });
+  $("submit-preset").addEventListener("click", async () => {
+    if (!memberOnly()) return;
+    const name = $("preset-name").value.trim();
+    if (!name || name.length > 30) { $("preset-message").textContent = "이름은 1~30자로 입력하세요."; return; }
+    $("submit-preset").disabled = true;
+    try {
+      const conditions = window.tubeSearch.formBody(form); delete conditions.keyword;
+      await api("/api/v1/presets", {method:"POST", body:JSON.stringify({name, conditions})});
+      $("preset-message").textContent = "프리셋을 저장했습니다."; $("preset-save").hidden = true;
+    } catch (error) { presetError(error); } finally { $("submit-preset").disabled = false; }
+  });
+  $("load-presets").addEventListener("click", async () => {
+    if (!memberOnly()) return;
+    $("load-presets").disabled = true;
+    try {
+      const presets = await api("/api/v1/presets"); $("preset-options").replaceChildren(); $("preset-options").hidden = false;
+      if (!presets.length) $("preset-message").textContent = "저장된 프리셋이 없습니다.";
+      for (const preset of presets) {
+        const button = node("button", preset.name); button.type = "button";
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          try { await applyLoaded((await api(`/api/v1/presets/${encodeURIComponent(preset.id)}`)).conditions); $("preset-options").hidden = true; }
+          catch (error) { presetError(error); } finally { button.disabled = false; }
+        }); $("preset-options").append(button);
+      }
+    } catch (error) { presetError(error); } finally { $("load-presets").disabled = false; }
+  });
+  async function restoreFromLink() {
+    const query = new URLSearchParams(window.location.search);
+    if (!query.has("preset") && !query.has("history")) return;
+    if (!memberOnly()) return;
+    try {
+      let conditions;
+      if (query.has("preset")) conditions = (await api(`/api/v1/presets/${encodeURIComponent(query.get("preset"))}`)).conditions;
+      else {
+        const row = (await api("/api/v1/history")).find(row => String(row.id) === query.get("history"));
+        if (!row) throw new Error("검색 기록을 찾을 수 없습니다.");
+        conditions = {...row.conditions, keyword:row.keyword};
+      }
+      await applyLoaded(conditions);
+    } catch (error) { presetError(error); }
+  }
+  restoreFromLink();
 })();

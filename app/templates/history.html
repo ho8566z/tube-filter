@@ -1,0 +1,8 @@
+{% extends "personal.html" %}
+{% block title %}검색 기록{% endblock %}
+{% block page %}history{% endblock %}
+{% block screen %}
+<h1>검색 기록</h1><p>최근 검색 50개 · 불러오기는 조건만 채우며 자동 검색하지 않습니다.</p>
+<button id="clear-history" type="button">전체 삭제</button>
+<div class="table-scroll"><table class="personal-table"><thead><tr><th>키워드</th><th>주요 조건</th><th>결과 수</th><th>검색 시각 (KST)</th><th>관리</th></tr></thead><tbody id="personal-list"></tbody></table></div>
+{% endblock %}

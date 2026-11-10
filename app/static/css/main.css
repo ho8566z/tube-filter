@@ -81,6 +81,11 @@ input[type="range"] { padding: 0; border: none; }
 .video-card dd { margin: 0; }
 .video-card a { display: inline-block; min-height: 44px; padding: .4rem 0; }
 .pagination { justify-content: center; margin: 1rem 0; }
+.personal-table { width: 100%; background: white; }
+.personal-table th, .personal-table td { padding: .7rem; text-align: left; overflow-wrap: anywhere; }
+#password-form { max-width: 540px; }
+#password-form label, #withdraw-form label { display: block; margin: .6rem 0; }
+#channel-summary { overflow-wrap: anywhere; }
 .chart-wrap { position: relative; width: 100%; height: 330px; }
 .table-scroll { max-width: 100%; overflow-x: auto; }
 .table-scroll table { border-collapse: collapse; font-size: .75rem; }
