@@ -2,8 +2,10 @@
 
 공개 API: `POST /api/v1/search/estimate`, `POST /api/v1/search`,
 `GET /api/v1/search/{searchId}/results`, `GET /api/v1/meta`.
-회원·횟수·속도 제한과 검색 기록 저장은 구현하지 않았다.
-`app/search/service.py:new_search_hook`은 캐시 미적중일 때만 호출되는 7단계 연결 지점이다.
+7단계에서 회원·횟수·속도 제한을 연결했다. 검색 기록 저장은 8단계 범위다.
+`app/search/service.py:new_search_hook`은 캐시 미적중일 때만 호출되며,
+비회원 IP 또는 회원 계정의 일일 신규 검색 카운터를 증가시킨다.
+모든 상태 변경 API는 CSRF 토큰이 필요하다. 사용법은 `users-and-limits.md`를 참고한다.
 
 조건 정규화와 견적은 외부 호출 없이 처리한다. 신규 검색은 후보 수집,
 영상 상세·영상 필터, 채널 조회·채널 필터, 조건부 활동 조회·필터,

@@ -13,6 +13,7 @@ from sqlalchemy import select
 from app.config import Settings
 from app.db import get_db
 from app.errors import DomainError, register_error_handlers
+from app.limits.limiter import Limiter
 from app.meta.service import metadata
 from app.meta.service import router as meta_router
 from app.models import SearchCache, VideoCache, VideoCategoryCache
@@ -24,6 +25,8 @@ from app.search.conditions import normalize
 from app.search.details import fetch_details
 from app.search.paging import paginate
 from app.search.service import SearchService, get_service, router
+from app.users.auth import SecurityMiddleware
+from app.users.auth import router as auth_router
 from app.youtube.adapter import get_youtube
 from tests.fakes.fake_youtube import CHANNELS, VIDEOS, FakeYouTubeAdapter
 
@@ -469,7 +472,12 @@ def test_public_search_meta_api_and_validation(factory, setup):
     register_error_handlers(app)
     app.include_router(router)
     app.include_router(meta_router)
+    app.include_router(auth_router)
+    app.add_middleware(SecurityMiddleware)
     app.state.session_factory = factory
+    app.state.settings = settings
+    app.state.clock = lambda: NOW
+    app.state.limiter = Limiter(settings, clock=lambda: NOW)
     app.dependency_overrides[get_youtube] = lambda: fake
 
     def service(db=Depends(get_db)):
@@ -477,6 +485,8 @@ def test_public_search_meta_api_and_validation(factory, setup):
 
     app.dependency_overrides[get_service] = service
     with TestClient(app) as client:
+        token = client.get("/api/v1/auth/csrf").json()["csrfToken"]
+        client.headers["X-CSRF-Token"] = token
         assert (
             client.post("/api/v1/search/estimate", json={"keyword": "x"}).json()[
                 "estimatedUnits"

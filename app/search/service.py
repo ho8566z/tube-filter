@@ -30,13 +30,20 @@ from app.search.funnel import Funnel
 from app.search.metrics import calculate_metrics
 from app.search.paging import paginate
 from app.time_utils import format_kst, to_utc, utc_now
+from app.users.auth import current_user
 from app.youtube.adapter import get_youtube
 
 router = APIRouter(prefix="/api/v1/search")
 
 
 def new_search_hook(request: Request):
-    """Stage 7 attaches guest/member usage enforcement here, on cache misses only."""
+    """Charge only a cache miss, before any upstream work starts."""
+    with request.app.state.session_factory() as db:
+        user = current_user(request, db)
+        user_id = user.id if user else None
+    request.app.state.limiter.new_search(
+        request.client.host if request.client else "unknown", user_id
+    )
 
 
 def video_predicates(video, v):
