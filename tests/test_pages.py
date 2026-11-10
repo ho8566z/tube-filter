@@ -212,3 +212,152 @@ def test_static_files(client, path, mime):
 )
 def test_later_screens_are_not_implemented(client, path):
     assert client.get(path).status_code == 404
+
+
+def test_search_filter_groups_and_controls(client):
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/html")
+    elements = Elements(response.text)
+    elements.attrs("form", id="search-form")
+    elements.attrs("details", id="filter-panel")
+    for group in (
+        "기간·형식",
+        "분류",
+        "비율",
+        "수치",
+        "접근 제한",
+        "채널",
+        "채널 활동",
+    ):
+        assert f"<legend>{group}</legend>" in response.text
+    for field in (
+        "keyword",
+        "published.after",
+        "published.before",
+        "video.hours.from",
+        "video.hours.to",
+        "video.hd",
+        "video.caption",
+        "video.cc",
+        "video.embeddable",
+        "video.weekdays",
+        "video.shorts",
+        "video.includeNoLanguage",
+        "video.excludeKids",
+        "restrictEnabled",
+        "anyRestriction",
+        "createdDays",
+        "createdBefore",
+        "channel.activity.countMin",
+        "channel.activity.countMax",
+    ):
+        elements.attrs("input", name=field)
+    for name in (
+        "video.durationSec",
+        "video.views",
+        "video.likes",
+        "video.comments",
+        "video.likeRatePct",
+        "video.commentRatePct",
+        "channel.subscribers",
+        "channel.viewsPerSubPct",
+        "channel.videoCount",
+        "channel.avgViews",
+    ):
+        for bound in ("min", "max"):
+            elements.attrs("input", name=f"{name}.{bound}")
+    for field in (
+        "pages",
+        "order",
+        "video.tags.mode",
+        "video.words.target",
+        "video.categoryIds.include",
+        "video.categoryIds.exclude",
+        "video.languages",
+        "video.regionCode",
+        "video.relevanceLanguage",
+        "restrictedCountry",
+        "createdMode",
+        "channel.countries",
+        "channel.activity.windowDays",
+        "channel.activity.lastUploadWithinDays",
+        "resultSort",
+        "resultOrder",
+        "resultSize",
+    ):
+        elements.attrs("select", name=field)
+    for field in (
+        "video.tags.include",
+        "video.tags.exclude",
+        "video.words.must",
+        "video.words.not",
+    ):
+        elements.attrs("div", **{"data-chips": field})
+    for name in ("video.durationSec", "channel.subscribers"):
+        for bound in ("min", "max"):
+            elements.attrs("input", **{"data-sync": f"{name}.{bound}"})
+    for element_id in (
+        "estimate",
+        "search-state",
+        "search-error",
+        "loading",
+        "warnings",
+        "funnel",
+        "filter-drops",
+        "video-list",
+        "result-tools",
+    ):
+        assert any(attrs.get("id") == element_id for _, attrs in elements.tags)
+    for button in (
+        "search-submit",
+        "reset-filters",
+        "export-csv",
+        "prev-page",
+        "next-page",
+    ):
+        elements.attrs("button", id=button)
+    for key in ("summary", "scatter", "heatmap"):
+        assert (
+            elements.attrs("button", id=f"tab-{key}")["aria-controls"]
+            == f"analysis-{key}"
+        )
+        assert elements.attrs("section", id=f"analysis-{key}")["role"] == "tabpanel"
+    for chart in ("scatter-chart", "heatmap-chart"):
+        elements.attrs("canvas", id=chart)
+    assert "YouTube 제공 지표가 아님" in response.text
+    assert "검색된 후보 안에서만 걸러낸 결과" in response.text
+    assert "다음 단계에서 제공" in response.text
+
+
+def test_search_scripts_player_and_vendor_serving(client):
+    elements = Elements(client.get("/").text)
+    scripts = [attrs["src"] for tag, attrs in elements.tags if tag == "script"]
+    assert [url.split("/static/")[1] for url in scripts] == [
+        "js/common.js",
+        "vendor/chart.umd.js",
+        "js/search.js",
+    ]
+    for url in scripts:
+        response = client.get(url)
+        assert response.status_code == 200
+        assert "javascript" in response.headers["content-type"]
+    vendor = client.get("/static/vendor/chart.umd.js").text
+    assert "Chart.js" in vendor
+    assert (
+        elements.attrs("dialog", id="player-modal")["aria-labelledby"] == "player-title"
+    )
+    elements.attrs("button", id="close-player")
+    link = elements.attrs("a", id="player-link")
+    assert link["target"] == "_blank" and "noopener" in link["rel"]
+    # No iframe can receive an unvalidated ID in server-rendered markup.
+    assert all(tag != "iframe" for tag, _ in elements.tags)
+    js = client.get("/static/js/search.js").text
+    assert "innerHTML" not in js
+    assert "textContent" in js
+    assert "window.tubeFilter.api" in js
+    assert "youtube-nocookie.com/embed/" in js
+    assert "id.length === 11" in js
+    assert "[A-Za-z0-9_-]{11}" in js
+    assert 'addEventListener("cancel"' in js
+    assert 'addEventListener("close"' in js

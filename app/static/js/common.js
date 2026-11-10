@@ -19,7 +19,7 @@ window.tubeFilter = {
   },
 };
 
-(async () => {
+window.tubeFilter.refreshQuota = async () => {
   const status = document.getElementById("quota-status");
   const bar = document.getElementById("quota-bar");
   try {
@@ -38,7 +38,8 @@ window.tubeFilter = {
   } catch {
     status.textContent = "쿼터 정보를 불러오지 못했습니다";
   }
-})();
+};
+window.tubeFilter.refreshQuota();
 
 document.getElementById("logout")?.addEventListener("click", async (event) => {
   const button = event.currentTarget;

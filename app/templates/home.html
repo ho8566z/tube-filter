@@ -1,8 +1,127 @@
 {% extends "base.html" %}
-{% block title %}홈{% endblock %}
+{% macro check(name, label, checked=false) %}
+<label class="checkbox"><input type="checkbox" name="{{ name }}" {% if checked %}checked{% endif %}>{{ label }}</label>
+{% endmacro %}
+{% macro select(name, label, choices, multiple=false, meta='') %}
+<label>{{ label }}<select name="{{ name }}" {% if multiple %}multiple size="4"{% endif %} {% if meta %}data-meta="{{ meta }}"{% endif %}>
+{% for value, title in choices %}<option value="{{ value }}">{{ title }}</option>{% endfor %}
+</select></label>
+{% endmacro %}
+{% macro bounds(name, label, step=1, max='', calc=false, slider=false) %}
+<fieldset class="range-field" data-range="{{ name }}"><legend>{{ label }} {% if calc %}<span class="badge">계산값 · YouTube 제공 지표가 아님</span>{% endif %}</legend>
+<div class="pair">{% for bound, title in [('min', '최소'), ('max', '최대')] %}
+<label>{{ title }}<input name="{{ name }}.{{ bound }}" type="{{ 'text' if name == 'video.durationSec' else 'number' }}" {% if name == 'video.durationSec' %}placeholder="mm:ss" pattern="[0-9]+:[0-5][0-9]"{% else %}min="0" step="{{ step }}" {% if max %}max="{{ max }}"{% endif %}{% endif %} {% if name in ['video.views', 'video.likes', 'video.comments'] %}data-count{% endif %}>
+{% if slider %}<input type="range" aria-label="{{ label }} {{ title }} 슬라이더" data-sync="{{ name }}.{{ bound }}" min="0" max="{{ 10800 if name == 'video.durationSec' else 1000000 }}" step="{{ 5 if name == 'video.durationSec' else 10000 }}" value="{{ 0 if bound == 'min' else (10800 if name == 'video.durationSec' else 1000000) }}">{% endif %}
+</label>{% endfor %}</div><small data-number-hint></small><p class="error" data-error="{{ name }}"></p></fieldset>
+{% endmacro %}
+{% macro chips(name, label, limit) %}
+<div class="chip-field" data-chips="{{ name }}" data-limit="{{ limit }}"><label>{{ label }}<input type="text" maxlength="50" data-chip-input placeholder="단어 입력 후 Enter"></label><div class="chips" aria-label="{{ label }} 목록"></div><p class="error" data-error="{{ name }}" role="status"></p></div>
+{% endmacro %}
+{% block title %}검색{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', path='/vendor/chart.umd.js') }}" defer></script>
+<script src="{{ url_for('static', path='/js/search.js') }}" defer></script>
+{% endblock %}
 {% block content %}
-<section class="panel">
-  <h1>tube-filter</h1>
-  <p>검색 화면은 준비 중입니다.</p>
-</section>
+<h1>tube-filter</h1>
+<p>YouTube 영상 정밀 필터 검색</p>
+<form id="search-form" novalidate>
+  <section class="panel search-bar" aria-label="검색 바">
+    <label class="keyword">키워드<input name="keyword" required minlength="1" maxlength="100" placeholder="검색할 키워드"></label>
+    <label>후보 쪽 수<select name="pages">{% for n in range(1,6) %}<option value="{{ n }}" {% if n == 2 %}selected{% endif %}>{{ n }}쪽</option>{% endfor %}</select></label>
+    {{ select('order', '후보 정렬 (YouTube)', [('relevance','관련도'),('date','최신'),('viewCount','조회수'),('rating','평점')]) }}
+    <small>어떤 후보를 가져올지 정합니다.</small>
+    <button id="search-submit" type="submit">검색</button><button id="reset-filters" type="button">필터 초기화</button>
+    <p id="estimate" role="status" hidden></p><p class="error" data-error="keyword"></p>
+  </section>
+  <div class="search-layout">
+    <details id="filter-panel" class="panel" open>
+      <summary>필터 패널 · 조건 설정</summary>
+      <div class="filters">
+        <fieldset><legend>기간·형식</legend>
+          <div class="pair"><label>업로드 시작일<input type="date" name="published.after"></label><label>종료일 (미포함)<input type="date" name="published.before"></label></div>
+          <div class="actions">{% for days in [7,30,90,365] %}<button type="button" data-days="{{ days }}">최근 {{ days }}일</button>{% endfor %}</div>
+          <p class="error" data-error="published"></p>
+          {{ bounds('video.durationSec', '길이 범위 (mm:ss)', slider=true) }}
+          <small>입력은 1초, 슬라이더는 5초 단위 (0~3시간).</small>
+          {{ check('video.hd','HD 화질') }}{{ check('video.caption','자막 있음') }}{{ check('video.cc','CC 라이선스') }}{{ check('video.embeddable','임베드 가능') }}
+          <small>위 네 조건은 YouTube 서버가 거릅니다.</small>
+          <fieldset><legend>쇼츠 (180초 이하로 추정)</legend>{% for v, t in [('ANY','상관없음'),('EXCLUDE','제외'),('ONLY','쇼츠만')] %}<label class="checkbox"><input type="radio" name="video.shorts" value="{{ v }}" {% if v == 'ANY' %}checked{% endif %}>{{ t }}</label>{% endfor %}</fieldset>
+          <fieldset><legend>업로드 요일 (한국 시간)</legend><div class="weekdays">{% for day in ['월','화','수','목','금','토','일'] %}<label><input type="checkbox" name="video.weekdays" value="{{ loop.index0 }}">{{ day }}</label>{% endfor %}</div></fieldset>
+          <div class="pair"><label>시작 시<input name="video.hours.from" type="number" min="0" max="23" step="1"></label><label>종료 시<input name="video.hours.to" type="number" min="0" max="23" step="1"></label></div>
+          <small>KST 0~23시, 시작이 종료보다 크면 자정을 넘깁니다.</small>
+          {{ select('video.regionCode','검색 지역', [('KR','대한민국')], meta='countries') }}
+          {{ select('video.relevanceLanguage','언어 선호 (엄격한 필터 아님)', [('', '상관없음')], meta='languages') }}
+        </fieldset>
+        <fieldset><legend>분류</legend>
+          {{ chips('video.tags.include','포함 태그 (최대 30개)',30) }}{{ chips('video.tags.exclude','제외 태그 (최대 30개)',30) }}
+          {{ select('video.tags.mode','태그 포함 방식',[('AND','AND · 모두'),('OR','OR · 하나 이상')]) }}
+          {{ chips('video.words.must','포함 단어 전부 (최대 20개)',20) }}{{ chips('video.words.not','제외 단어 하나라도 (최대 20개)',20) }}
+          {{ select('video.words.target','단어 검색 대상',[('BOTH','제목·설명'),('TITLE','제목'),('DESCRIPTION','설명')]) }}
+          {{ select('video.categoryIds.include','카테고리 포함', [], true, 'categories') }}{{ select('video.categoryIds.exclude','카테고리 제외', [], true, 'categories') }}
+          <small>포함 1개는 YouTube 서버 조건, 2개 이상은 후처리합니다. Ctrl/Command로 여러 항목을 선택할 수 있습니다.</small>
+          {{ select('video.languages','영상 언어', [], true, 'languages') }}{{ check('video.includeNoLanguage','값 없는 영상 포함',true) }}
+          <p id="meta-error" class="error" role="status"></p><button type="button" id="retry-meta" hidden>선택지 다시 불러오기</button>
+        </fieldset>
+        <fieldset><legend>비율</legend>
+          {{ bounds('video.likeRatePct','좋아요율 (%)',0.01,100,true) }}{{ bounds('video.commentRatePct','댓글 참여율 (%)',0.01,100,true) }}
+        </fieldset>
+        <fieldset><legend>수치</legend>
+          {{ bounds('video.views','조회수',100) }}{{ bounds('video.likes','좋아요 수',100) }}{{ bounds('video.comments','댓글 수',100) }}
+          <small>직접 입력은 1 단위, ▲▼는 100 단위입니다. 좋아요·댓글 조건을 사용하면 비공개 영상은 제외됩니다.</small>
+        </fieldset>
+        <fieldset><legend>접근 제한</legend>
+          {{ check('video.excludeKids','아동용 영상 제외') }}{{ check('restrictEnabled','지정 국가에서 볼 수 없는 영상 제외') }}
+          {{ select('restrictedCountry','제한 확인 국가',[('KR','대한민국')],meta='countries') }}{{ check('anyRestriction','지역 제한이 있는 영상 모두 제외') }}
+        </fieldset>
+        <fieldset><legend>채널</legend>
+          {{ bounds('channel.subscribers','구독자 수',slider=true) }}<small>구독자 조건을 사용하면 구독자 비공개 채널은 제외됩니다. 슬라이더는 10,000명 단위입니다.</small>
+          {{ bounds('channel.viewsPerSubPct','구독자 대비 조회수 (%)',0.01,calc=true) }}<small>100% 이상 = 구독자 수보다 조회수가 많음.</small>
+          {{ bounds('channel.videoCount','채널 영상 수') }}{{ bounds('channel.avgViews','채널 평균 조회수',0.01,calc=true) }}
+          {{ select('createdMode','개설 시기',[('','상관없음'),('withinDays','최근 N일 이내'),('before','특정일 이전')]) }}
+          <label>최근 N일 이내 개설<input type="number" name="createdDays" min="1" step="1"></label><label>특정일 이전 개설<input type="date" name="createdBefore"></label><p class="error" data-error="channel.created"></p>
+          {{ select('channel.countries','채널 국가', [('__unset__','미설정')], true, 'countries') }}
+        </fieldset>
+        <fieldset><legend>채널 활동</legend>
+          {{ select('channel.activity.windowDays','업로드 빈도 기간', [('30','30일'),('60','60일'),('90','90일')]) }}
+          <div class="pair"><label>업로드 수 최소<input name="channel.activity.countMin" type="number" min="0" step="1"></label><label>최대<input name="channel.activity.countMax" type="number" min="0" step="1"></label></div>
+          <p class="error" data-error="channel.activity"></p>
+          {{ select('channel.activity.lastUploadWithinDays','마지막 업로드',[('','상관없음'),('30','30일 이내'),('60','60일 이내'),('90','90일 이내')]) }}
+          <small>채널마다 1 unit, 한 번에 최대 50채널까지만 확인합니다. 견적에 최대 +50 units 반영.</small>
+        </fieldset>
+        <div class="actions"><button type="button" disabled>프리셋 불러오기</button><button type="button" disabled>프리셋 저장</button></div>
+        <small>{% if not user %}로그인 후 이용할 수 있습니다. {% endif %}프리셋 기능은 다음 단계에서 제공됩니다.</small>
+      </div>
+    </details>
+    <section id="results" aria-label="검색 결과" aria-busy="false">
+      <p id="search-state" role="status">키워드와 조건을 입력해 검색하세요.</p>
+      <p id="search-error" class="error" role="alert"></p>
+      <div id="loading" class="notice" hidden>검색 처리 중 · 후보 수집 → 영상 정보 → 영상 필터 → 채널 정보 → 채널 필터 → 결과 정리</div>
+      <p id="warnings" class="warning" role="status" hidden></p>
+      <section id="result-content" hidden>
+        <div class="panel"><h2>필터 통과 현황</h2><div id="funnel"></div><div id="filter-drops"></div>
+          <p>YouTube 검색 결과 중 검색된 후보 안에서만 걸러낸 결과입니다.</p><p id="search-quota"></p>
+          <div id="result-tools" class="actions">
+            {{ select('resultSort','결과 정렬',[('publishedAt','게시일'),('views','조회수'),('likes','좋아요'),('comments','댓글'),('likeRate','좋아요율 (계산값)'),('commentRate','댓글 참여율 (계산값)'),('viewsPerSub','구독자 대비 조회수 (계산값)'),('duration','길이')]) }}
+            {{ select('resultOrder','정렬 방향',[('desc','내림차순'),('asc','오름차순')]) }}
+            {{ select('resultSize','쪽 크기',[('20','20개'),('10','10개'),('50','50개')]) }}
+            <button type="button" id="export-csv">CSV 내보내기</button>
+          </div>
+        </div>
+        <div id="video-list"></div>
+        <nav class="pagination" aria-label="결과 페이지"><button type="button" id="prev-page">이전</button><span id="page-status"></span><button type="button" id="next-page">다음</button></nav>
+        <section class="panel" aria-label="검색 결과 분석"><h2>시각화</h2>
+          <div class="actions" role="tablist" aria-label="분석 종류">{% for key,title in [('summary','요약 통계'),('scatter','구독자-조회수 산점도'),('heatmap','업로드 히트맵')] %}<button type="button" id="tab-{{ key }}" role="tab" aria-controls="analysis-{{ key }}" aria-selected="false" data-analysis="{{ key }}">{{ title }}</button>{% endfor %}</div>
+          <p id="analysis-state" role="status"></p>
+          <section id="analysis-summary" role="tabpanel" aria-labelledby="tab-summary" hidden></section>
+          <section id="analysis-scatter" role="tabpanel" aria-labelledby="tab-scatter" hidden><label class="checkbox"><input type="checkbox" id="log-scale">로그 축 (0인 점은 제외)</label><div class="chart-wrap"><canvas id="scatter-chart" role="img" aria-label="구독자 수와 조회수 산점도"></canvas></div><p id="scatter-note"></p></section>
+          <section id="analysis-heatmap" role="tabpanel" aria-labelledby="tab-heatmap" hidden><p>한국 시간 (KST), 월요일부터 일요일 · 색이 진할수록 업로드가 많습니다.</p><div class="chart-wrap"><canvas id="heatmap-chart" role="img" aria-label="요일별 시간별 업로드 히트맵"></canvas></div><div id="heatmap-table" class="table-scroll"></div></section>
+          <p>계산값 · YouTube 제공 지표가 아님</p>
+        </section>
+      </section>
+    </section>
+  </div>
+</form>
+<dialog id="player-modal" aria-labelledby="player-title"><div class="actions"><h2 id="player-title">영상 재생</h2><button type="button" id="close-player">닫기</button></div><div id="player-container"></div><p id="player-message"></p><a id="player-link" target="_blank" rel="noopener noreferrer">YouTube에서 보기</a></dialog>
+<noscript><p class="notice">검색과 재생 기능을 사용하려면 JavaScript를 켜 주세요.</p></noscript>
 {% endblock %}
