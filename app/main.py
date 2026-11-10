@@ -3,17 +3,27 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from sqlalchemy.orm import sessionmaker
 
 from app.config import Settings
+from app.db import create_db_engine
+from app.errors import register_error_handlers
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.settings = Settings()
-    yield
+    engine = create_db_engine(app.state.settings.database_url)
+    app.state.engine = engine
+    app.state.session_factory = sessionmaker(engine)
+    try:
+        yield
+    finally:
+        engine.dispose()
 
 
 app = FastAPI(title="tube-filter", lifespan=lifespan)
+register_error_handlers(app)
 
 
 @app.get("/api/v1/health")

@@ -6,14 +6,17 @@ from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
-class Settings(BaseSettings):
+class DatabaseSettings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env", env_file_encoding="utf-8", extra="ignore"
     )
 
+    database_url: str = "sqlite:///data/tubefilter.db"
+
+
+class Settings(DatabaseSettings):
     youtube_api_key: Annotated[SecretStr, Field(min_length=1)]
     session_secret: Annotated[SecretStr, Field(min_length=32)]
-    database_url: str = "sqlite:///data/tubefilter.db"
     quota_daily_limit: int = 10000
     quota_soft_limit: int = 9000
     cache_search_ttl_hours: int = 6
