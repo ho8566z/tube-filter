@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}개인정보처리방침{% endblock %}
+{% block content %}
+<article class="panel policy">
+  <h1>개인정보처리방침</h1>
+  <h2>YouTube API 서비스 사용</h2>
+  <p>tube-filter는 YouTube API 서비스(YouTube Data API v3)를 사용하여 공개 영상·채널 정보를 제공합니다.
+    Google의 데이터 처리에 대해서는 <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google 개인정보처리방침</a>을 확인하세요.</p>
+  <h2>수집 항목과 이용 목적</h2>
+  <ul>
+    <li>아이디와 비밀번호 해시: 회원 식별 및 로그인 인증에 사용합니다. 비밀번호 원문은 저장하지 않습니다.</li>
+    <li>프리셋: 사용자가 저장한 검색 조건을 다시 불러오기 위해 보관합니다.</li>
+    <li>즐겨찾기 영상 ID: 저장한 영상을 다시 확인하기 위해 보관합니다.</li>
+    <li>검색 기록: 이전 검색 조건과 결과를 다시 확인하기 위해 보관합니다.</li>
+  </ul>
+  <p>세션 쿠키는 로그인 유지와 CSRF 요청 보호에 사용합니다. 요청 IP는 비회원 검색 횟수 및 요청 속도 제한을 위해 메모리에서 일시적으로 처리합니다. YouTube 로그인 정보는 수집하지 않습니다.</p>
+  <h2>보관 기간</h2>
+  <p>회원 데이터는 회원 탈퇴 시까지 보관합니다. YouTube에서 가져온 공개 영상·채널 데이터 캐시는 최대 28일 보관하며, 통계는 24시간이 지나면 갱신 대상입니다. 검색 결과의 영상 ID 캐시는 6시간 보관합니다.</p>
+  <h2>삭제 방법</h2>
+  <p>회원 탈퇴 시 아이디·비밀번호 해시·프리셋·즐겨찾기 영상 ID·검색 기록을 즉시 삭제하며 복구할 수 없습니다. 내 정보 화면은 준비 중입니다. 현재 삭제 요청은 아래 문의처로 접수할 수 있습니다. 공개 캐시는 회원 데이터와 별도로 최대 28일 안에 삭제됩니다.</p>
+  <h2>제3자 제공·광고·추적</h2>
+  <p>수집한 회원 개인정보를 제3자에게 제공하지 않습니다. 서비스 자체에서 광고나 사용자 추적을 하지 않으며 광고·추적 쿠키를 사용하지 않습니다.</p>
+  <h2>문의처</h2>
+  <p>개인정보 문의 및 삭제 요청: <a href="https://github.com/ho8566z/tube-filter/issues" target="_blank" rel="noopener noreferrer">tube-filter GitHub Issues</a>. 공개 문의에는 비밀번호 등 민감한 정보를 올리지 마세요.</p>
+</article>
+{% endblock %}

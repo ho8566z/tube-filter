@@ -4,6 +4,7 @@ import asyncio
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import sessionmaker
 
 from app.analysis.service import router as analysis_router
@@ -17,6 +18,8 @@ from app.history.service import router as history_router
 from app.jobs.cleanup import run_cleanup, schedule_cleanup
 from app.limits.limiter import Limiter
 from app.meta.service import router as meta_router
+from app.pages.policy import APP_DIR
+from app.pages.policy import router as pages_router
 from app.presets.service import router as presets_router
 from app.quota.guard import QuotaGuard
 from app.quota.status import router as quota_router
@@ -69,6 +72,8 @@ app.include_router(history_router)
 app.include_router(analysis_router)
 app.include_router(channels_router)
 app.include_router(export_router)
+app.mount("/static", StaticFiles(directory=APP_DIR / "static"), name="static")
+app.include_router(pages_router)
 
 
 @app.get("/api/v1/health")

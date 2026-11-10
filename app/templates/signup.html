@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}회원가입{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', path='/js/auth.js') }}" defer></script>{% endblock %}
+{% block content %}
+<section class="panel auth-panel">
+  <h1>회원가입</h1>
+  <p>이 서비스 전용 계정입니다. YouTube 로그인 정보는 입력하지 마세요.</p>
+  <p id="form-error" class="error" role="alert"></p>
+  <form id="auth-form" data-mode="signup" method="post" action="/api/v1/auth/signup">
+    <label for="loginId">아이디</label>
+    <input id="loginId" name="loginId" autocomplete="username" minlength="4" maxlength="20" pattern="[a-z][a-z0-9]{3,19}" aria-describedby="loginId-help loginId-error" required>
+    <small id="loginId-help">영문 소문자로 시작하는 소문자·숫자 4~20자</small>
+    <p id="loginId-error" class="error" aria-live="polite"></p>
+    <label for="password">비밀번호</label>
+    <input id="password" name="password" type="password" autocomplete="new-password" minlength="8" maxlength="64" aria-describedby="password-help password-error" required>
+    <small id="password-help">영문과 숫자를 각각 포함한 8~64자, UTF-8 72바이트 이하</small>
+    <p id="password-error" class="error" aria-live="polite"></p>
+    <label for="passwordConfirm">비밀번호 확인</label>
+    <input id="passwordConfirm" name="passwordConfirm" type="password" autocomplete="new-password" minlength="8" maxlength="64" aria-describedby="passwordConfirm-error" required>
+    <p id="passwordConfirm-error" class="error" aria-live="polite"></p>
+    <label class="checkbox" for="agreePrivacy">
+      <input id="agreePrivacy" name="agreePrivacy" type="checkbox" aria-describedby="agreePrivacy-error" required>
+      개인정보처리방침에 동의합니다 (필수)
+    </label>
+    <a href="/privacy" target="_blank" rel="noopener noreferrer">개인정보처리방침 보기</a>
+    <p id="agreePrivacy-error" class="error" aria-live="polite"></p>
+    <button id="submit-auth" type="submit" disabled>가입</button>
+  </form>
+  <p><a href="/login">로그인으로 돌아가기</a></p>
+</section>
+{% endblock %}

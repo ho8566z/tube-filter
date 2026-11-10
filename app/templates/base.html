@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}tube-filter{% endblock %} · tube-filter</title>
+  <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
+  <script src="{{ url_for('static', path='/js/common.js') }}" defer></script>
+  {% block scripts %}{% endblock %}
+</head>
+<body>
+  <a class="skip-link" href="#content">본문으로 건너뛰기</a>
+  <header class="site-header">
+    <div class="header-row">
+      <a class="brand" href="/">tube-filter</a>
+      <nav aria-label="주 메뉴">
+        <a href="/">검색</a>
+        {% if user %}
+        <a href="/presets">프리셋</a>
+        <a href="/favorites">즐겨찾기</a>
+        <a href="/history">검색 기록</a>
+        <a href="/me">내 정보</a>
+        <span>{{ user.login_id }} 님</span>
+        <button id="logout" type="button">로그아웃</button>
+        {% else %}
+        <a href="/login">로그인</a>
+        <a href="/signup">회원가입</a>
+        {% endif %}
+      </nav>
+    </div>
+    <section class="quota" aria-label="YouTube API 쿼터 현황">
+      <p id="quota-status" role="status">쿼터 정보를 불러오는 중입니다.</p>
+      <progress id="quota-bar" max="100" value="0" aria-label="오늘 쿼터 사용량" hidden></progress>
+    </section>
+    <p id="global-message" role="status"></p>
+  </header>
+  <main id="content" tabindex="-1">{% block content %}{% endblock %}</main>
+  <footer class="site-footer">
+    <nav aria-label="정책 링크">
+      <a href="/privacy">개인정보처리방침</a>
+      <a href="/terms">이용약관</a>
+      <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">YouTube 이용약관</a>
+      <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">Google 개인정보처리방침</a>
+    </nav>
+    <p>YouTube에서 가져온 콘텐츠를 사용자 조건으로 걸러 보여줍니다.</p>
+    <p>YouTube 검색 결과 중 검색된 후보 안에서 걸러낸 결과를 제공하며, 다른 출처의 결과를 섞지 않습니다.</p>
+    <p>구독자 대비 조회수, 좋아요율, 댓글 참여율, 채널 평균 조회수는 서비스가 계산한 값이며 YouTube 제공 지표가 아님을 안내합니다.</p>
+  </footer>
+</body>
+</html>
