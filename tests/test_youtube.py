@@ -40,6 +40,8 @@ def test_disallowed_endpoint_never_calls_or_records(factory, endpoint):
 def test_failed_attempts_stay_recorded(factory, result):
     fake = FakeYouTubeAdapter(QuotaGuard(factory, 9000), clock=lambda: NOW)
     fake.responses.append(result)
+    if isinstance(result, httpx.RequestError):
+        fake.responses.append(result)
     with pytest.raises(DomainError) as exc:
         fake.request("search.list", {})
     assert exc.value.code == "UPSTREAM_ERROR"
@@ -47,7 +49,8 @@ def test_failed_attempts_stay_recorded(factory, result):
     assert "private-key" not in str(exc.value)
     with factory() as db:
         db.rollback()  # failure of caller work cannot undo the accounting
-        assert used_units(db, NOW) == 100
+        expected = 200 if isinstance(result, httpx.RequestError) else 100
+        assert used_units(db, NOW) == expected
         assert db.scalar(select(QuotaUsage)).search_id is None
 
 
@@ -83,6 +86,21 @@ def test_fake_fixed_data_is_independent_of_returned_mutations(factory):
     assert (
         fake.request("videos.list", params)["items"][0]["snippet"]["title"] == "Video 0"
     )
+
+
+def test_network_retry_success_and_quota_check_between_attempts(factory):
+    fake = FakeYouTubeAdapter(QuotaGuard(factory, 9000), clock=lambda: NOW)
+    fake.responses = [httpx.ConnectError("private-key")]
+    assert fake.request("search.list", {})["items"]
+    assert len(fake.calls) == 2
+    with factory() as db:
+        assert used_units(db, NOW) == 200
+    fake.guard.soft_limit = 300
+    fake.responses = [httpx.ReadTimeout("private-key")]
+    with pytest.raises(DomainError) as exc:
+        fake.request("search.list", {})
+    assert exc.value.code == "QUOTA_BLOCKED"
+    assert len(fake.calls) == 3  # No transport call for a blocked retry.
 
 
 def test_http_transport_uses_only_official_url_and_environment_key(

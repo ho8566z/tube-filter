@@ -1,6 +1,7 @@
 """FNC-S-006 standalone channel lookup service; caller owns the transaction."""
 
 from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, fields
 
 from sqlalchemy.orm import Session
@@ -35,15 +36,23 @@ def fetch_channels(
         for key, row in hits.items()
     }
     missing = [key for key in ids if key not in found]
-    for start in range(0, len(missing), 50):
-        batch = missing[start : start + 50]
+    batches = [missing[start : start + 50] for start in range(0, len(missing), 50)]
+
+    def fetch(batch):
         try:
-            payload = adapter.request(
+            return adapter.request(
                 "channels.list",
                 {"part": "snippet,statistics,contentDetails", "id": ",".join(batch)},
                 search_id=search_id,
             )
         except DomainError:
+            return None
+
+    # Only adapter calls run in workers; the caller's Session stays on this thread.
+    with ThreadPoolExecutor(max_workers=5) as pool:
+        payloads = list(pool.map(fetch, batches))
+    for batch, payload in zip(batches, payloads):
+        if payload is None:
             continue
         rows = []
         for item in payload.get("items", []):

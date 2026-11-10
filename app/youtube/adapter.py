@@ -36,16 +36,19 @@ class HttpYouTubeAdapter:
     ) -> dict[str, Any]:
         if endpoint not in ENDPOINT_COSTS:
             raise ValueError("Unsupported YouTube endpoint")
-        now = self.clock()
-        self.guard.before_call(endpoint, now, search_id)
-        try:
-            response = self._send(endpoint, params)
-        except httpx.RequestError:
-            raise DomainError(
-                "UPSTREAM_ERROR",
-                "YouTube 요청에 실패했습니다. 다시 시도해 주세요.",
-                502,
-            ) from None
+        for attempt in range(2):
+            now = self.clock()
+            self.guard.before_call(endpoint, now, search_id)
+            try:
+                response = self._send(endpoint, params)
+                break
+            except httpx.RequestError:
+                if attempt == 1:
+                    raise DomainError(
+                        "UPSTREAM_ERROR",
+                        "YouTube 요청에 실패했습니다. 다시 시도해 주세요.",
+                        502,
+                    ) from None
         try:
             payload = response.json()
             if not isinstance(payload, dict):

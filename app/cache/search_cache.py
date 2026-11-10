@@ -56,10 +56,11 @@ class SearchResultCache:
         *,
         warnings: list | None = None,
         quota_spent: int = 0,
+        search_id: str | None = None,
     ) -> SearchCache:
         now = to_utc(self.clock())
         row = SearchCache(
-            id=uuid4().hex,
+            id=search_id or uuid4().hex,
             cond_hash=condition_hash(conditions),
             conditions=conditions_json(conditions),
             video_ids=json.dumps(video_ids, ensure_ascii=False),
