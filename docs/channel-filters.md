@@ -47,7 +47,8 @@ output = calculate_metrics(video, channel, activity, now=now)
 `recentUploads["30"/"60"/"90"]`의 `count`·`atLeast`, KST 기준
 `uploadWeekdayKst`(월=0~일=6)·`uploadHourKst`(0~23)를 제공한다.
 모든 계산값에 공통 `label`을 함께 제공한다. 아직 조회하지 않았거나 실패한 활동의
-개수는 `None`이다. 검색 파이프라인·HTTP API·화면·CSV는 연결하지 않았다.
+개수는 `None`이다. (5단계 시점 기록: 검색 파이프라인·HTTP API·화면·CSV는 아직 연결하지 않았다.
+이후 6~10단계에서 모두 연결했다. `search-pipeline.md` 참고.)
 
 명세에서 구체적으로 정하지 않은 부분은 다음과 같이 처리했다.
 
