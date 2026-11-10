@@ -17,7 +17,7 @@ class Limiter:
         self.day = None
 
     def check_request(self, ip, path):
-        search = path == "/api/v1/search" or path.startswith("/api/v1/search/")
+        search = path in ("/api/v1/search", "/api/v1/search/estimate")
         limit = (
             self.settings.limit_search_per_min
             if search

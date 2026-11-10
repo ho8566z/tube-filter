@@ -14,11 +14,9 @@ SORT_PATHS = {
 }
 
 
-def paginate(items, *, page=0, size=20, sort="publishedAt", order="desc"):
+def sort_items(items, *, sort="publishedAt", order="desc"):
     if sort not in SORT_PATHS or order not in ("asc", "desc"):
         invalid("sort", "INVALID_SORT")
-    if type(page) is not int or page < 0 or size not in (10, 20, 50):
-        invalid("page")
 
     def value(item):
         for key in SORT_PATHS[sort]:
@@ -28,7 +26,13 @@ def paginate(items, *, page=0, size=20, sort="publishedAt", order="desc"):
     ranked = sorted(items, key=lambda item: item["publishedAt"] or "", reverse=True)
     present = [item for item in ranked if value(item) is not None]
     absent = [item for item in ranked if value(item) is None]
-    ranked = sorted(present, key=value, reverse=order == "desc") + absent
+    return sorted(present, key=value, reverse=order == "desc") + absent
+
+
+def paginate(items, *, page=0, size=20, sort="publishedAt", order="desc"):
+    ranked = sort_items(items, sort=sort, order=order)
+    if type(page) is not int or page < 0 or size not in (10, 20, 50):
+        invalid("page")
     return {
         "items": ranked[page * size : (page + 1) * size],
         "page": page,

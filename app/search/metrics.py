@@ -31,6 +31,7 @@ def rounded(value: Fraction | None) -> float | None:
 class ChannelActivity:
     # None is failed/unknown; () is a successful empty uploads playlist.
     upload_dates: tuple[datetime, ...] | None = None
+    video_ids: tuple[str, ...] | None = None
 
     def count(self, days: int, now: datetime) -> int | None:
         if self.upload_dates is None:

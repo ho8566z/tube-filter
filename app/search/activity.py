@@ -75,22 +75,32 @@ async def fetch_activity(
     *,
     now: datetime,
     search_id: str | None = None,
+    include_video_ids: bool = False,
+    cache_only: bool = False,
 ) -> ActivityLookup:
     """One request per uncached channel, no pagination. DB stays on caller thread.
 
     The adapter must support concurrent request calls (the production adapter
     uses independent HTTP clients and a locked quota guard).
     """
-    if not conditions.active:
+    if not conditions.active and not include_video_ids:
         return ActivityLookup({}, {})
     unique = list({c.channel_id: c for c in channels}.values())
     selected, limited = unique[:50], unique[50:]
     activities = cache.get_channel_activity(db, [c.channel_id for c in selected])
+    if include_video_ids:
+        activities = {k: v for k, v in activities.items() if v.video_ids is not None}
 
     async def fetch(channel):
         if not channel.uploads_playlist_id:
-            return channel.channel_id, ChannelActivity()
+            return channel.channel_id, (
+                ChannelActivity((), ()) if include_video_ids else ChannelActivity()
+            )
         try:
+            if cache_only:
+                raise DomainError(
+                    "QUOTA_BLOCKED", "캐시된 정보만 이용할 수 있습니다.", 503
+                )
             payload = await asyncio.to_thread(
                 adapter.request,
                 "playlistItems.list",
@@ -107,18 +117,34 @@ async def fetch_activity(
                 )
                 for item in payload.get("items", [])[:50]
             )
-            return channel.channel_id, ChannelActivity(dates)
-        except (DomainError, ValueError, KeyError, TypeError):
+            ids = tuple(
+                item["contentDetails"]["videoId"]
+                for item in payload.get("items", [])[:50]
+                if item.get("contentDetails", {}).get("videoId")
+            )
+            return channel.channel_id, ChannelActivity(dates, ids)
+        except DomainError as exc:
+            return channel.channel_id, exc
+        except (ValueError, KeyError, TypeError):
             return channel.channel_id, ChannelActivity()
 
     fetched = await asyncio.gather(
         *(fetch(c) for c in selected if c.channel_id not in activities)
     )
+    warnings = []
     for key, activity in fetched:
+        if isinstance(activity, DomainError):
+            stale = cache.get_channel_activity(db, [key], stale=True).get(key)
+            if include_video_ids and activity.code == "QUOTA_BLOCKED":
+                activities[key] = stale or ChannelActivity()
+                warnings.append("STALE_STATS")
+                continue
+            if include_video_ids:
+                raise activity
+            activity = ChannelActivity()
         activities[key] = activity
         if activity.upload_dates is not None:
             cache.save_channel_activity(db, key, activity)
-    warnings = []
     if any(a.upload_dates is None for a in activities.values()):
         warnings.append("PARTIAL_FAILURE")
     if limited:

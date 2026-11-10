@@ -27,6 +27,7 @@ def fetch_channels(
     channel_ids: Sequence[str],
     *,
     search_id: str | None = None,
+    allow_stale: bool = False,
 ) -> ChannelLookup:
     ids = list(dict.fromkeys(channel_ids))
     hits = cache.get_channels(db, ids)
@@ -45,14 +46,25 @@ def fetch_channels(
                 {"part": "snippet,statistics,contentDetails", "id": ",".join(batch)},
                 search_id=search_id,
             )
-        except DomainError:
-            return None
+        except DomainError as exc:
+            return exc
 
     # Only adapter calls run in workers; the caller's Session stays on this thread.
     with ThreadPoolExecutor(max_workers=5) as pool:
         payloads = list(pool.map(fetch, batches))
+    warnings = []
     for batch, payload in zip(batches, payloads):
-        if payload is None:
+        if isinstance(payload, DomainError):
+            if allow_stale:
+                if payload.code != "QUOTA_BLOCKED":
+                    raise payload
+                for key in batch:
+                    row = db.get(ChannelCache, key)
+                    if row and row.fetched_at > cache.clock() - cache.max_age:
+                        found[key] = ChannelInfo(**{n: getattr(row, n) for n in names})
+                if any(key not in found for key in batch):
+                    raise payload
+                warnings.append("STALE_STATS")
             continue
         rows = []
         for item in payload.get("items", []):
@@ -68,5 +80,5 @@ def fetch_channels(
     return ChannelLookup(
         tuple(found[key] for key in ids if key in found),
         unavailable,
-        ("PARTIAL_FAILURE",) if unavailable else (),
+        tuple(warnings + (["PARTIAL_FAILURE"] if unavailable else [])),
     )

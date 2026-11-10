@@ -6,9 +6,12 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from sqlalchemy.orm import sessionmaker
 
+from app.analysis.service import router as analysis_router
+from app.channels.service import router as channels_router
 from app.config import Settings
 from app.db import create_db_engine
 from app.errors import register_error_handlers
+from app.export.csv import router as export_router
 from app.favorites.service import router as favorites_router
 from app.history.service import router as history_router
 from app.jobs.cleanup import run_cleanup, schedule_cleanup
@@ -63,6 +66,9 @@ app.include_router(users_router)
 app.include_router(presets_router)
 app.include_router(favorites_router)
 app.include_router(history_router)
+app.include_router(analysis_router)
+app.include_router(channels_router)
+app.include_router(export_router)
 
 
 @app.get("/api/v1/health")

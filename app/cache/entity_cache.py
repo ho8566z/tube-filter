@@ -58,12 +58,14 @@ class EntityCache:
         self._save(db, channels)
 
     def get_channel_activity(
-        self, db: Session, channel_ids: Sequence[str]
+        self, db: Session, channel_ids: Sequence[str], *, stale: bool = False
     ) -> dict[str, ChannelActivity]:
         """Activity freshness is independent of channel statistics freshness."""
         if not channel_ids:
             return {}
-        cutoff = to_utc(self.clock()) - min(self.ttl, self.max_age)
+        cutoff = to_utc(self.clock()) - (
+            self.max_age if stale else min(self.ttl, self.max_age)
+        )
         rows = db.scalars(
             select(ChannelCache).where(
                 ChannelCache.channel_id.in_(channel_ids),
@@ -71,15 +73,17 @@ class EntityCache:
                 ChannelCache.recent_uploads.is_not(None),
             )
         )
-        return {
-            row.channel_id: ChannelActivity(
-                tuple(
-                    to_utc(datetime.fromisoformat(value))
-                    for value in json.loads(row.recent_uploads)
-                )
+        result = {}
+        for row in rows:
+            data = json.loads(row.recent_uploads)
+            # Earlier caches contain only a list of dates.
+            dates = data["dates"] if isinstance(data, dict) else data
+            ids = data.get("videoIds") if isinstance(data, dict) else None
+            result[row.channel_id] = ChannelActivity(
+                tuple(to_utc(datetime.fromisoformat(value)) for value in dates),
+                tuple(ids) if ids is not None else None,
             )
-            for row in rows
-        }
+        return result
 
     def save_channel_activity(
         self, db: Session, channel_id: str, activity: ChannelActivity
@@ -88,8 +92,11 @@ class EntityCache:
         row = db.get(ChannelCache, channel_id)
         if row is None or activity.upload_dates is None:
             return
+        dates = [to_utc(value).isoformat() for value in activity.upload_dates]
         row.recent_uploads = json.dumps(
-            [to_utc(value).isoformat() for value in activity.upload_dates]
+            {"dates": dates, "videoIds": activity.video_ids}
+            if activity.video_ids is not None
+            else dates
         )
         row.recent_fetched_at = to_utc(self.clock())
         db.flush()

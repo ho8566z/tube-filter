@@ -321,9 +321,8 @@ class SearchService:
             "page": page,
         }
 
-    async def results(self, search_id, **paging):
-        # Validate query even for empty results.
-        paginate([], **paging)
+    async def all_results(self, search_id, *, cache_only=True):
+        """Load the complete cached result for analytics and exports."""
         row = self.db.get(SearchCache, search_id)
         if row is None or row.expires_at <= to_utc(self.clock()):
             raise DomainError(
@@ -331,7 +330,12 @@ class SearchService:
                 "검색 결과가 만료되었습니다. 다시 검색해 주세요.",
                 404,
             )
-        items, warnings = await self.result_items(row, cache_only=False)
+        return await self.result_items(row, cache_only=cache_only)
+
+    async def results(self, search_id, **paging):
+        # Validate query even for empty results.
+        paginate([], **paging)
+        items, warnings = await self.all_results(search_id, cache_only=False)
         page = paginate(items, **paging)
         if warnings:
             page["warnings"] = warnings
