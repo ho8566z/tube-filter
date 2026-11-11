@@ -1,8 +1,25 @@
 # tube-filter
 
+![tube-filter 표지](https://raw.githubusercontent.com/ho8566z/tube-filter_word/main/images/ppt/cover-banner.png)
+
 YouTube 영상 정밀 필터 검색 서비스. YouTube 기본 검색에 없는 조건(정확한 길이,
 조회수·좋아요 범위, 구독자 수 범위, 구독자 대비 조회수 %, 태그, 업로드 요일·시간대,
-채널 업로드 빈도 등)으로 영상을 걸러 줍니다. 취업 포트폴리오용 개인 프로젝트입니다.
+채널 업로드 빈도 등)으로 영상을 걸러 줍니다. 취업 포트폴리오용 개인 프로젝트입니다. (2차 개인 프로젝트, 2026.11)
+
+명세서와 발표 자료는 문서 저장소 [tube-filter_word](https://github.com/ho8566z/tube-filter_word)에 있습니다.
+
+## 프로젝트 요약
+
+- **해결하려는 문제**: 유튜브 기본 검색으로는 "구독자 1만 명 이하 채널의 8~15분 영상 중 최근 30일 안에 올라왔고 좋아요율이 높은 것" 같은 조합 조건을 만들 수 없다.
+- **핵심 기능**: 필터 32개, 검색 파이프라인, 쿼터 관리, 분석(요약·산점도·히트맵)
+- **기술 스택**: Python 3.12, FastAPI, SQLAlchemy·Alembic, Jinja2, 바닐라 JS, Chart.js, YouTube Data API v3
+- **설계 포인트**: 하루 10,000 units 쿼터를 비용이 낮은 필터부터 적용하고, 캐싱과 사전 견적으로 아낀다.
+
+## 구조
+
+![검색 파이프라인](https://raw.githubusercontent.com/ho8566z/tube-filter_word/main/images/ppt/search-pipeline.png)
+
+![시스템 구성도](https://raw.githubusercontent.com/ho8566z/tube-filter_word/main/images/ppt/architecture.png)
 
 ## 현재 상태
 
@@ -68,6 +85,7 @@ uv run ruff format --check .
 
 ## 문서
 
+- 문서 저장소: [tube-filter_word](https://github.com/ho8566z/tube-filter_word) (명세서 엑셀, 발표 자료 PPT·PDF)
 - 명세서: [docs/spec](docs/spec/README.md) (구현하며 달라진 점은 [구현 반영 사항](docs/spec/14_구현_반영_사항.md))
 - 구현 순서: [docs/implementation-plan.md](docs/implementation-plan.md)
 - 단계별 구현 기록: `docs/` 아래 `video-filters.md`, `channel-filters.md`, `search-pipeline.md`,
