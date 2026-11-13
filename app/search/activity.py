@@ -22,7 +22,7 @@ class ActivityConditions:
     count: NumberRange = NumberRange()
     last_upload_within_days: int | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.window_days not in (30, 60, 90) or (
             self.last_upload_within_days is not None
             and self.last_upload_within_days not in (30, 60, 90)
@@ -91,7 +91,7 @@ async def fetch_activity(
     if include_video_ids:
         activities = {k: v for k, v in activities.items() if v.video_ids is not None}
 
-    async def fetch(channel):
+    async def fetch(channel: ChannelInfo) -> tuple[str, ChannelActivity | DomainError]:
         if not channel.uploads_playlist_id:
             return channel.channel_id, (
                 ChannelActivity((), ()) if include_video_ids else ChannelActivity()

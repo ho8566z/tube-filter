@@ -3,24 +3,34 @@
 import asyncio
 import csv
 import io
+from collections.abc import Sequence
+from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, Response
 
 from app.search.metrics import CALCULATED_LABEL
 from app.search.paging import sort_items
-from app.search.service import get_service
+from app.search.service import SearchService, get_service
 from app.time_utils import format_kst
 
 router = APIRouter(prefix="/api/v1/search")
 
 
-def safe_cell(value):
+def safe_cell(value: Any) -> Any:
     if isinstance(value, str) and value.lstrip().startswith(("=", "+", "-", "@")):
         return "'" + value
     return value
 
 
-def export_csv(items, now, *, sort="publishedAt", order="desc", warnings=()):
+def export_csv(
+    items: list[dict[str, Any]],
+    now: datetime,
+    *,
+    sort: str = "publishedAt",
+    order: str = "desc",
+    warnings: Sequence[str] = (),
+) -> bytes:
     items = sort_items(items, sort=sort, order=order)
     output = io.StringIO(newline="")
     writer = csv.writer(output)
@@ -74,8 +84,8 @@ def download_csv(
     search_id: str,
     sort: str = "publishedAt",
     order: str = "desc",
-    service=Depends(get_service),
-):
+    service: SearchService = Depends(get_service),
+) -> Response:
     sort_items([], sort=sort, order=order)
     items, warnings = asyncio.run(service.all_results(search_id))
     return Response(

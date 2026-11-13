@@ -1,6 +1,8 @@
 """FNC-X-004: fixed choices and region-specific seven-day category cache."""
 
-from datetime import timedelta
+from collections.abc import Iterable
+from datetime import datetime, timedelta
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import delete, select
@@ -11,7 +13,7 @@ from app.errors import DomainError
 from app.models import VideoCategoryCache
 from app.search.conditions import code
 from app.time_utils import utc_now
-from app.youtube.adapter import get_youtube
+from app.youtube.adapter import YouTubeAdapter, get_youtube
 
 router = APIRouter(prefix="/api/v1")
 LANGUAGES = [
@@ -36,7 +38,13 @@ COUNTRIES = [
 ]
 
 
-def metadata(db, adapter, region_code="KR", *, now=None):
+def metadata(
+    db: Session,
+    adapter: YouTubeAdapter,
+    region_code: str = "KR",
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
     region = code(region_code, "regionCode", True)
     now = now or utc_now()
     rows = list(
@@ -74,7 +82,7 @@ def metadata(db, adapter, region_code="KR", *, now=None):
     return category_response(rows)
 
 
-def category_response(rows):
+def category_response(rows: Iterable[VideoCategoryCache]) -> dict[str, Any]:
     return {
         "categories": [
             {"id": row.category_id, "title": row.title}
@@ -89,6 +97,8 @@ def category_response(rows):
 
 @router.get("/meta")
 def get_metadata(
-    regionCode: str = "KR", db: Session = Depends(get_db), adapter=Depends(get_youtube)
-):
+    regionCode: str = "KR",
+    db: Session = Depends(get_db),
+    adapter: YouTubeAdapter = Depends(get_youtube),
+) -> dict[str, Any]:
     return metadata(db, adapter, regionCode)

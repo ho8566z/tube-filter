@@ -49,7 +49,7 @@ class NumberRange:
     min: Number | None = None
     max: Number | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.min is not None and self.max is not None and self.min > self.max:
             raise ValueError("min must not exceed max")
 
