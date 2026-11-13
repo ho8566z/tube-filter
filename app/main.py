@@ -1,6 +1,7 @@
 """FastAPI entry point."""
 
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
@@ -31,7 +32,7 @@ from app.users.service import router as users_router
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.settings = Settings()
     app.state.clock = utc_now
     app.state.limiter = Limiter(app.state.settings, clock=lambda: app.state.clock())

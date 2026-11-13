@@ -2,16 +2,21 @@
 
 import asyncio
 import json
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from typing import Any
 
 from sqlalchemy import delete
+from sqlalchemy.orm import Session
 
+from app.cache.entity_cache import EntityCache
 from app.errors import DomainError
 from app.models import VideoCache
 from app.search.video_info import VideoInfo
+from app.youtube.adapter import YouTubeAdapter
 
 
-def video_info(row):
+def video_info(row: VideoCache) -> VideoInfo:
     return VideoInfo(
         video_id=row.video_id,
         channel_id=row.channel_id,
@@ -35,11 +40,11 @@ def video_info(row):
     )
 
 
-def cache_video(item):
+def cache_video(item: Mapping[str, Any]) -> VideoCache:
     video = VideoInfo.from_youtube(item)
     snippet = item.get("snippet") or {}
 
-    def encoded(value):
+    def encoded(value: Any) -> str | None:
         return json.dumps(value, ensure_ascii=False) if value is not None else None
 
     return VideoCache(
@@ -75,14 +80,20 @@ class VideoLookup:
 
 
 async def fetch_details(
-    db, adapter, cache, video_ids, *, search_id=None, cache_only=False
-):
+    db: Session,
+    adapter: YouTubeAdapter,
+    cache: EntityCache,
+    video_ids: Iterable[str],
+    *,
+    search_id: str | None = None,
+    cache_only: bool = False,
+) -> VideoLookup:
     ids = list(dict.fromkeys(video_ids))
     rows = cache.get_videos(db, ids)
     missing = [key for key in ids if key not in rows]
     failed, deleted, warnings = [], [], []
 
-    async def fetch(batch):
+    async def fetch(batch: list[str]) -> dict[str, Any] | DomainError:
         try:
             return await asyncio.to_thread(
                 adapter.request,

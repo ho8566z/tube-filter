@@ -1,6 +1,7 @@
 """FNC-C-001: reuse channel, upload activity, and video lookup services."""
 
 import asyncio
+from typing import Any
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
@@ -11,13 +12,13 @@ from app.models import VideoCache
 from app.search.activity import fetch_activity
 from app.search.channels import fetch_channels
 from app.search.details import fetch_details
-from app.search.service import get_service, render_items
+from app.search.service import SearchService, get_service, render_items
 from app.time_utils import format_kst
 
 router = APIRouter(prefix="/api/v1/channels")
 
 
-async def channel_detail(service, channel_id):
+async def channel_detail(service: SearchService, channel_id: str) -> dict[str, Any]:
     db, cache, adapter = service.db, service.cache, service.adapter
     lookup = fetch_channels(db, adapter, cache, [channel_id], allow_stale=True)
     db.commit()
@@ -89,5 +90,7 @@ async def channel_detail(service, channel_id):
 
 
 @router.get("/{channel_id}")
-def get_channel(channel_id: str, service=Depends(get_service)):
+def get_channel(
+    channel_id: str, service: SearchService = Depends(get_service)
+) -> dict[str, Any]:
     return asyncio.run(channel_detail(service, channel_id))

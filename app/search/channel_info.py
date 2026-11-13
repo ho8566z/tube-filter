@@ -33,7 +33,7 @@ class ChannelInfo:
         hidden = stats.get("hiddenSubscriberCount") is True
         published = snippet.get("publishedAt")
 
-        def count(key):
+        def count(key: str) -> int | None:
             value = stats.get(key)
             return int(value) if value is not None else None
 

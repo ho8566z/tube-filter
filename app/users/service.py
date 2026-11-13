@@ -1,7 +1,7 @@
 """FNC-U-001/002/005/006: account validation and persistence."""
 
 import re
-from typing import Never
+from typing import Any, Never
 
 import bcrypt
 from fastapi import APIRouter, Depends, Request, Response
@@ -38,7 +38,7 @@ class PasswordBody(BaseModel):
     password: SecretStr
 
 
-def invalid(field, message) -> Never:
+def invalid(field: str, message: str) -> Never:
     raise DomainError(
         "VALIDATION_ERROR",
         "입력값을 확인해 주세요.",
@@ -46,7 +46,7 @@ def invalid(field, message) -> Never:
     )
 
 
-def normalize_login_id(value):
+def normalize_login_id(value: str) -> str:
     value = value.lower()
     if not re.fullmatch(r"[a-z][a-z0-9]{3,19}", value):
         raise DomainError(
@@ -59,7 +59,7 @@ def normalize_login_id(value):
     return value
 
 
-def validate_password(password, confirm, field="password") -> None:
+def validate_password(password: str, confirm: str, field: str = "password") -> None:
     if (
         not 8 <= len(password) <= 64
         or not re.search(r"[a-zA-Z]", password)
@@ -73,23 +73,23 @@ def validate_password(password, confirm, field="password") -> None:
         invalid(field + "Confirm", "비밀번호가 일치하지 않습니다.")
 
 
-def hash_password(password):
+def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("ascii")
 
 
-def password_matches(password, encoded):
+def password_matches(password: str, encoded: str) -> bool:
     raw = password.encode("utf-8")
     if len(raw) > 72:
         return False
     return bcrypt.checkpw(raw, encoded.encode("ascii"))
 
 
-def check_password(password, user) -> None:
+def check_password(password: str, user: AppUser) -> None:
     if not password_matches(password, user.password):
         raise DomainError("WRONG_PASSWORD", "현재 비밀번호가 올바르지 않습니다.")
 
 
-def require_user(request: Request, db: Session = Depends(get_db)):
+def require_user(request: Request, db: Session = Depends(get_db)) -> AppUser:
     # Shared dependency is also available to the later personal-data routes.
     from app.users.auth import current_user
 
@@ -100,7 +100,7 @@ def require_user(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/auth/check-id")
-def check_id(loginId: str, db: Session = Depends(get_db)):
+def check_id(loginId: str, db: Session = Depends(get_db)) -> dict[str, bool]:
     login_id = normalize_login_id(loginId)
     return {
         "available": db.scalar(select(AppUser.id).where(AppUser.login_id == login_id))
@@ -109,7 +109,7 @@ def check_id(loginId: str, db: Session = Depends(get_db)):
 
 
 @router.post("/auth/signup", status_code=201)
-def signup(body: Signup, db: Session = Depends(get_db)):
+def signup(body: Signup, db: Session = Depends(get_db)) -> dict[str, Any]:
     login_id = normalize_login_id(body.loginId)
     password = body.password.get_secret_value()
     validate_password(password, body.passwordConfirm.get_secret_value())
@@ -132,7 +132,7 @@ def signup(body: Signup, db: Session = Depends(get_db)):
 
 
 @router.get("/me")
-def me(user: AppUser = Depends(require_user)):
+def me(user: AppUser = Depends(require_user)) -> dict[str, Any]:
     return {
         "id": user.id,
         "loginId": user.login_id,
@@ -145,7 +145,7 @@ def change_password(
     body: PasswordChange,
     user: AppUser = Depends(require_user),
     db: Session = Depends(get_db),
-):
+) -> Response:
     current = body.currentPassword.get_secret_value()
     check_password(current, user)
     new = body.newPassword.get_secret_value()
@@ -163,7 +163,7 @@ def withdraw(
     request: Request,
     user: AppUser = Depends(require_user),
     db: Session = Depends(get_db),
-):
+) -> Response:
     check_password(body.password.get_secret_value(), user)
     # The three personal tables already have ON DELETE CASCADE FKs.
     db.delete(user)

@@ -1,13 +1,15 @@
 """FNC-V-001: NULL-excluding result statistics."""
 
+from collections.abc import Iterable, Sequence
 from fractions import Fraction
 from statistics import median
+from typing import Any
 
 from app.search.metrics import CALCULATED_LABEL, rounded
 
 
-def summarize(items):
-    def stats(values):
+def summarize(items: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    def stats(values: Iterable[Any]) -> dict[str, Any]:
         values = [Fraction(str(value)) for value in values if value is not None]
         if not values:
             return {"avg": None, "median": None, "max": None}

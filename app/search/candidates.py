@@ -1,11 +1,14 @@
 """FNC-S-003 / FNC-F-001: server filters and sequential token pagination."""
 
 import asyncio
+from typing import Any
 
 from app.errors import DomainError
+from app.search.conditions import SearchConditions
+from app.youtube.adapter import YouTubeAdapter
 
 
-def search_params(conditions):
+def search_params(conditions: SearchConditions) -> dict[str, Any]:
     d, v = conditions.data, conditions.data["video"]
     params = {
         "part": "id",
@@ -34,7 +37,9 @@ def search_params(conditions):
     return params
 
 
-async def fetch_candidates(adapter, conditions, *, search_id):
+async def fetch_candidates(
+    adapter: YouTubeAdapter, conditions: SearchConditions, *, search_id: str | None
+) -> tuple[list[str], list[str]]:
     params, ids, warnings = search_params(conditions), [], []
     for _ in range(conditions.data["pages"]):
         try:
