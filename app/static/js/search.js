@@ -408,9 +408,8 @@ window.tubeSearch = (() => {
     if (!searchId) return;
     const button = $("export-csv"); button.disabled = true;
     try {
-      const response = await fetch(endpoint(`export.csv?${new URLSearchParams({sort: control("resultSort").value, order: control("resultOrder").value})}`), {credentials: "same-origin"});
-      if (!response.ok) { const error = new Error("CSV를 내려받지 못했습니다."); error.status = response.status; error.data = await response.json(); throw error; }
-      const url = URL.createObjectURL(await response.blob());
+      const blob = await window.tubeFilter.download(endpoint(`export.csv?${new URLSearchParams({sort: control("resultSort").value, order: control("resultOrder").value})}`), "CSV를 내려받지 못했습니다.");
+      const url = URL.createObjectURL(blob);
       const link = node("a"); link.href = url; link.download = "tube-filter.csv"; document.body.append(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
     } catch (error) { await showError(error); } finally { button.disabled = false; }
   });
