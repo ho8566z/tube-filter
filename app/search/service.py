@@ -37,7 +37,7 @@ from app.youtube.adapter import get_youtube
 router = APIRouter(prefix="/api/v1/search")
 
 
-def new_search_hook(request: Request):
+def new_search_hook(request: Request) -> None:
     """Charge only a cache miss, before any upstream work starts."""
     with request.app.state.session_factory() as db:
         user = current_user(request, db)
@@ -153,7 +153,7 @@ def render_items(videos, rows, channels, now, activities=None):
 
 
 class SearchService:
-    def __init__(self, db, adapter, settings, *, clock=utc_now):
+    def __init__(self, db, adapter, settings, *, clock=utc_now) -> None:
         self.db, self.adapter, self.settings, self.clock = db, adapter, settings, clock
         self.cache = EntityCache(settings, clock)
         self.search_cache = SearchResultCache(settings, clock)

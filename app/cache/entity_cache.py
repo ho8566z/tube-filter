@@ -16,7 +16,9 @@ from app.time_utils import to_utc, utc_now
 class EntityCache:
     """Return fresh hits only; caller fetches misses and commits writes."""
 
-    def __init__(self, settings: Settings, clock: Callable[[], datetime] = utc_now):
+    def __init__(
+        self, settings: Settings, clock: Callable[[], datetime] = utc_now
+    ) -> None:
         self.ttl = timedelta(hours=settings.cache_stats_ttl_hours)
         self.max_age = timedelta(days=settings.cache_max_days)
         self.clock = clock

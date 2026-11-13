@@ -51,7 +51,7 @@ def values(body, now):
     return name, json.dumps(data, ensure_ascii=False)
 
 
-def save(db, row):
+def save(db, row) -> None:
     db.add(row)
     try:
         db.commit()

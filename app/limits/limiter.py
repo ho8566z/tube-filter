@@ -9,14 +9,14 @@ from app.time_utils import to_kst, utc_now
 
 
 class Limiter:
-    def __init__(self, settings, clock=utc_now):
+    def __init__(self, settings, clock=utc_now) -> None:
         self.settings, self.clock = settings, clock
         self.lock = Lock()
         self.requests = defaultdict(deque)
         self.daily = {}
         self.day = None
 
-    def check_request(self, ip, path):
+    def check_request(self, ip, path) -> None:
         search = path in ("/api/v1/search", "/api/v1/search/estimate")
         limit = (
             self.settings.limit_search_per_min
@@ -42,7 +42,7 @@ class Limiter:
                 )
             queue.append(now)
 
-    def new_search(self, ip, user_id=None):
+    def new_search(self, ip, user_id=None) -> None:
         day = to_kst(self.clock()).date()
         key = ("user", user_id) if user_id is not None else ("ip", ip)
         limit = (

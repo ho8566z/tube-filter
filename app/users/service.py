@@ -1,6 +1,7 @@
 """FNC-U-001/002/005/006: account validation and persistence."""
 
 import re
+from typing import Never
 
 import bcrypt
 from fastapi import APIRouter, Depends, Request, Response
@@ -37,7 +38,7 @@ class PasswordBody(BaseModel):
     password: SecretStr
 
 
-def invalid(field, message):
+def invalid(field, message) -> Never:
     raise DomainError(
         "VALIDATION_ERROR",
         "입력값을 확인해 주세요.",
@@ -58,7 +59,7 @@ def normalize_login_id(value):
     return value
 
 
-def validate_password(password, confirm, field="password"):
+def validate_password(password, confirm, field="password") -> None:
     if (
         not 8 <= len(password) <= 64
         or not re.search(r"[a-zA-Z]", password)
@@ -83,7 +84,7 @@ def password_matches(password, encoded):
     return bcrypt.checkpw(raw, encoded.encode("ascii"))
 
 
-def check_password(password, user):
+def check_password(password, user) -> None:
     if not password_matches(password, user.password):
         raise DomainError("WRONG_PASSWORD", "현재 비밀번호가 올바르지 않습니다.")
 

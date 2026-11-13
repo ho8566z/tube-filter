@@ -44,7 +44,7 @@ def create_db_engine(database_url: str) -> Engine:
     if url.get_backend_name() == "sqlite":
 
         @event.listens_for(engine, "connect")
-        def enable_foreign_keys(connection, _record):
+        def enable_foreign_keys(connection, _record) -> None:
             cursor = connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()

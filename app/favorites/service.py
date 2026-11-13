@@ -21,7 +21,7 @@ from app.youtube.adapter import get_youtube
 router = APIRouter(prefix="/api/v1/favorites")
 
 
-def validate_id(video_id):
+def validate_id(video_id) -> None:
     if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
         raise DomainError("INVALID_VIDEO_ID", "영상 ID가 올바르지 않습니다.")
 

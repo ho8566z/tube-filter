@@ -76,7 +76,7 @@ def logout(request: Request):
 class SecurityMiddleware:
     """Load settings after lifespan startup, then use Starlette's signed cookies."""
 
-    def __init__(self, app):
+    def __init__(self, app) -> None:
         self.app = app
 
     async def __call__(self, scope, receive, send):

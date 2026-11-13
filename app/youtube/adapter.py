@@ -26,7 +26,7 @@ class HttpYouTubeAdapter:
         guard: QuotaGuard,
         *,
         clock: Callable[[], datetime] = utc_now,
-    ):
+    ) -> None:
         self._api_key = api_key
         self.guard = guard
         self.clock = clock
