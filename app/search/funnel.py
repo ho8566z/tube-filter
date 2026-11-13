@@ -4,12 +4,12 @@ from collections import Counter
 
 
 class Funnel:
-    def __init__(self, candidates):
+    def __init__(self, candidates) -> None:
         self.stages = {"candidates": candidates}
         self.drops = Counter()
         self.filter_drops = Counter()
 
-    def accept(self, results):
+    def accept(self, results) -> bool:
         for result in results:
             if not result.passed:
                 self.drops[result.reason] += 1

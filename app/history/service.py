@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/v1/history")
 logger = logging.getLogger(__name__)
 
 
-def record_search(db, user_id, conditions, result_count, now):
+def record_search(db, user_id, conditions, result_count, now) -> None:
     """Search has succeeded; a history failure must not replace its response."""
     if user_id is None:
         return

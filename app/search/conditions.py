@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Never
 
 from app.cache.search_cache import condition_hash
 from app.errors import DomainError
@@ -54,7 +55,7 @@ DEFAULTS = {
 }
 
 
-def invalid(field, code="VALIDATION_ERROR"):
+def invalid(field, code="VALIDATION_ERROR") -> Never:
     raise DomainError(
         code,
         "입력값을 확인해 주세요.",
