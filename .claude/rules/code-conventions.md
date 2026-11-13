@@ -46,3 +46,5 @@ paths:
 ## 7. 이 프로젝트(tube-filter)의 현황
 - `app/` 아래 모든 함수에 매개변수·반환 타입 힌트가 있다(ruff `ANN001·ANN201·ANN202·ANN204` 0건). 새 함수도 같은 수준으로 쓴다.
 - 요청·응답 구조가 아직 모델이 아니라 `dict[str, Any]`인 곳이 많다. 필드가 굳으면 Pydantic 모델이나 `TypedDict`로 바꾼다.
+- 라우터 함수와 DB 접근이 `{도메인}/service.py` 한 모듈에 함께 있다(`favorites`, `history`, `presets`, `meta`, `channels`). 도메인이 작아 router/service를 나누지 않는 구조이며 기존 방식이라 유지한다. 새 도메인에서 로직이 커지면 service 함수로 분리한다.
+- 화면 JS는 `window.tubeFilter` 하나만 전역으로 둔다(공용 `api()`·`download()`). 서버 호출은 모두 이 두 함수를 거친다.
