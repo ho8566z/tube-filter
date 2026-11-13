@@ -1,6 +1,8 @@
 """FNC-P-001–003: owner-scoped, normalized filter presets."""
 
 import json
+from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, Request, Response
 from pydantic import BaseModel, ConfigDict
@@ -24,7 +26,7 @@ class PresetBody(BaseModel):
     conditions: dict
 
 
-def owned(db, user_id, preset_id):
+def owned(db: Session, user_id: int, preset_id: int) -> FilterPreset:
     if not 1 <= preset_id <= 2**63 - 1:
         invalid("id")
     row = db.scalar(
@@ -37,11 +39,11 @@ def owned(db, user_id, preset_id):
     return row
 
 
-def detail(row):
+def detail(row: FilterPreset) -> dict[str, Any]:
     return {"id": row.id, "name": row.name, "conditions": json.loads(row.conditions)}
 
 
-def values(body, now):
+def values(body: PresetBody, now: datetime) -> tuple[str, str]:
     name = body.name.strip()
     if not 1 <= len(name) <= 30:
         invalid("name")
@@ -51,7 +53,7 @@ def values(body, now):
     return name, json.dumps(data, ensure_ascii=False)
 
 
-def save(db, row):
+def save(db: Session, row: FilterPreset) -> None:
     db.add(row)
     try:
         db.commit()
@@ -63,7 +65,9 @@ def save(db, row):
 
 
 @router.get("")
-def list_presets(request: Request, db: Session = Depends(get_db)):
+def list_presets(
+    request: Request, db: Session = Depends(get_db)
+) -> list[dict[str, Any]]:
     uid = current_user(request, db).id
     rows = db.scalars(
         select(FilterPreset)
@@ -77,12 +81,16 @@ def list_presets(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/{preset_id}")
-def get_preset(preset_id: int, request: Request, db: Session = Depends(get_db)):
+def get_preset(
+    preset_id: int, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
     return detail(owned(db, current_user(request, db).id, preset_id))
 
 
 @router.post("", status_code=201)
-def create_preset(body: PresetBody, request: Request, db: Session = Depends(get_db)):
+def create_preset(
+    body: PresetBody, request: Request, db: Session = Depends(get_db)
+) -> dict[str, Any]:
     uid = current_user(request, db).id
     now = request.app.state.clock()
     name, conditions = values(body, now)
@@ -103,7 +111,7 @@ def create_preset(body: PresetBody, request: Request, db: Session = Depends(get_
 @router.put("/{preset_id}")
 def update_preset(
     preset_id: int, body: PresetBody, request: Request, db: Session = Depends(get_db)
-):
+) -> dict[str, Any]:
     row = owned(db, current_user(request, db).id, preset_id)
     now = request.app.state.clock()
     row.name, row.conditions = values(body, now)
@@ -113,7 +121,9 @@ def update_preset(
 
 
 @router.delete("/{preset_id}", status_code=204)
-def delete_preset(preset_id: int, request: Request, db: Session = Depends(get_db)):
+def delete_preset(
+    preset_id: int, request: Request, db: Session = Depends(get_db)
+) -> Response:
     db.delete(owned(db, current_user(request, db).id, preset_id))
     db.commit()
     return Response(status_code=204)

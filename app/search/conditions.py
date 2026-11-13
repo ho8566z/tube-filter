@@ -1,10 +1,12 @@
 """FNC-S-001: validate API conditions and build a canonical cache key."""
 
 import re
+from collections.abc import Callable, Iterable
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import Decimal
+from typing import Any, Never
 
 from app.cache.search_cache import condition_hash
 from app.errors import DomainError
@@ -54,7 +56,7 @@ DEFAULTS = {
 }
 
 
-def invalid(field, code="VALIDATION_ERROR"):
+def invalid(field: str, code: str = "VALIDATION_ERROR") -> Never:
     raise DomainError(
         code,
         "입력값을 확인해 주세요.",
@@ -62,13 +64,13 @@ def invalid(field, code="VALIDATION_ERROR"):
     )
 
 
-def integer(value, field, low=0, high=None):
+def integer(value: Any, field: str, low: int = 0, high: int | None = None) -> int:
     if type(value) is not int or value < low or (high is not None and value > high):
         invalid(field)
     return value
 
 
-def date_utc(value, field):
+def date_utc(value: Any, field: str) -> str:
     try:
         if not isinstance(value, str):
             raise ValueError
@@ -80,13 +82,20 @@ def date_utc(value, field):
         invalid(field)
 
 
-def options(data, allowed, field):
+def options(data: Any, allowed: Iterable[str], field: str) -> dict[str, Any]:
     if not isinstance(data, dict) or data.keys() - set(allowed):
         invalid(field)
     return {k: v for k, v in data.items() if v is not None and v != ""}
 
 
-def bounds(data, field, *, duration=False, percent=False, fractional=False):
+def bounds(
+    data: Any,
+    field: str,
+    *,
+    duration: bool = False,
+    percent: bool = False,
+    fractional: bool = False,
+) -> dict[str, Any]:
     data = options(data, ("min", "max"), field)
     for key, value in data.items():
         if duration and isinstance(value, str):
@@ -112,7 +121,12 @@ def bounds(data, field, *, duration=False, percent=False, fractional=False):
     return data
 
 
-def choices(value, field, transform, limit=None):
+def choices(
+    value: Any,
+    field: str,
+    transform: Callable[[Any], Any],
+    limit: int | None = None,
+) -> list[Any]:
     if not isinstance(value, list):
         invalid(field)
     result = sorted(
@@ -123,7 +137,7 @@ def choices(value, field, transform, limit=None):
     return result
 
 
-def text(value, field):
+def text(value: Any, field: str) -> str:
     if not isinstance(value, str):
         invalid(field)
     value = value.strip().lower()
@@ -132,7 +146,7 @@ def text(value, field):
     return value
 
 
-def code(value, field, upper=False):
+def code(value: Any, field: str, upper: bool = False) -> str:
     if not isinstance(value, str) or not re.fullmatch(r"[a-zA-Z]{2}", value):
         invalid(field)
     return value.upper() if upper else value.lower()
@@ -143,11 +157,11 @@ class SearchConditions:
     data: dict
 
     @property
-    def cond_hash(self):
+    def cond_hash(self) -> str:
         return condition_hash(self.data)
 
     @property
-    def activity(self):
+    def activity(self) -> ActivityConditions:
         a = self.data["channel"]["activity"]
         return ActivityConditions(
             a.get("windowDays", 30),
@@ -156,7 +170,7 @@ class SearchConditions:
         )
 
 
-def normalize(raw: dict, *, now=None) -> SearchConditions:
+def normalize(raw: dict[str, Any], *, now: datetime | None = None) -> SearchConditions:
     raw = options(raw, DEFAULTS, "conditions")
     d = deepcopy(DEFAULTS)
     for key in ("keyword", "pages", "order"):
@@ -213,7 +227,7 @@ def normalize(raw: dict, *, now=None) -> SearchConditions:
             path = "video." + key + "." + field
             if key == "categoryIds":
 
-                def transform(x):
+                def transform(x: Any) -> str:
                     return str(
                         integer(
                             int(x) if isinstance(x, str) and x.isdecimal() else x,
@@ -223,7 +237,7 @@ def normalize(raw: dict, *, now=None) -> SearchConditions:
                     )
             else:
 
-                def transform(x):
+                def transform(x: Any) -> str:
                     return text(x, path)
 
             v[key][field] = choices(

@@ -3,7 +3,7 @@
 import secrets
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -26,7 +26,7 @@ router = APIRouter()
 @router.get("/history", response_class=HTMLResponse)
 @router.get("/me", response_class=HTMLResponse)
 @router.get("/channels/{channel_id}", response_class=HTMLResponse)
-def page(request: Request, db: Session = Depends(get_db)):
+def page(request: Request, db: Session = Depends(get_db)) -> Response:
     user = current_user(request, db)
     if (
         request.url.path in {"/presets", "/favorites", "/history", "/me"}

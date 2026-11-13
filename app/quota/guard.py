@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class QuotaGuard:
-    def __init__(self, session_factory: Callable[[], Session], soft_limit: int):
+    def __init__(self, session_factory: Callable[[], Session], soft_limit: int) -> None:
         self.session_factory = session_factory
         self.soft_limit = soft_limit
         self._exhausted_date: date | None = None

@@ -23,7 +23,7 @@ class DomainError(Exception):
         message: str,
         status_code: int = 400,
         field_errors: list[FieldError] | None = None,
-    ):
+    ) -> None:
         super().__init__(message)
         self.code = code
         self.message = message

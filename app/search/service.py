@@ -2,8 +2,10 @@
 
 import asyncio
 import json
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import fields
 from datetime import datetime
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Request
@@ -12,10 +14,11 @@ from sqlalchemy.orm import Session
 
 from app.cache.entity_cache import EntityCache
 from app.cache.search_cache import SearchResultCache
+from app.config import Settings
 from app.db import get_db
 from app.errors import DomainError
 from app.history.service import record_search
-from app.models import ChannelCache, QuotaUsage, SearchCache
+from app.models import ChannelCache, QuotaUsage, SearchCache, VideoCache
 from app.quota.clock import next_reset
 from app.quota.estimate import estimate
 from app.quota.status import used_units
@@ -25,19 +28,20 @@ from app.search.activity import fetch_activity
 from app.search.candidates import fetch_candidates
 from app.search.channel_info import ChannelInfo
 from app.search.channels import fetch_channels
-from app.search.conditions import normalize
+from app.search.conditions import SearchConditions, normalize
 from app.search.details import fetch_details
 from app.search.funnel import Funnel
-from app.search.metrics import calculate_metrics
+from app.search.metrics import ChannelActivity, calculate_metrics
 from app.search.paging import paginate
+from app.search.video_info import VideoInfo
 from app.time_utils import format_kst, to_utc, utc_now
 from app.users.auth import current_user
-from app.youtube.adapter import get_youtube
+from app.youtube.adapter import YouTubeAdapter, get_youtube
 
 router = APIRouter(prefix="/api/v1/search")
 
 
-def new_search_hook(request: Request):
+def new_search_hook(request: Request) -> None:
     """Charge only a cache miss, before any upstream work starts."""
     with request.app.state.session_factory() as db:
         user = current_user(request, db)
@@ -47,7 +51,7 @@ def new_search_hook(request: Request):
     )
 
 
-def video_predicates(video, v):
+def video_predicates(video: VideoInfo, v: dict[str, Any]) -> Iterator[fv.FilterResult]:
     yield fv.filter_duration(video, fv.NumberRange(**v["durationSec"]))
     for key in ("views", "likes", "comments"):
         yield fv.filter_count(video, key, fv.NumberRange(**v[key]))
@@ -79,7 +83,9 @@ def video_predicates(video, v):
     yield fv.filter_shorts(video, v["shorts"])
 
 
-def channel_predicates(video, channel, c, now):
+def channel_predicates(
+    video: VideoInfo, channel: ChannelInfo, c: dict[str, Any], now: datetime
+) -> Iterator[fv.FilterResult]:
     yield fc.filter_subscribers(channel, fv.NumberRange(**c["subscribers"]))
     yield fc.filter_views_per_sub(video, channel, fv.NumberRange(**c["viewsPerSubPct"]))
     yield fc.filter_video_count(channel, fv.NumberRange(**c["videoCount"]))
@@ -96,7 +102,9 @@ def channel_predicates(video, channel, c, now):
     yield fc.filter_country(channel, c["countries"])
 
 
-def cached_channels(db, ids, cache):
+def cached_channels(
+    db: Session, ids: Sequence[str], cache: EntityCache
+) -> dict[str, ChannelInfo]:
     result = {}
     names = [field.name for field in fields(ChannelInfo)]
     if ids:
@@ -113,7 +121,13 @@ def cached_channels(db, ids, cache):
     return result
 
 
-def render_items(videos, rows, channels, now, activities=None):
+def render_items(
+    videos: Sequence[VideoInfo],
+    rows: dict[str, VideoCache],
+    channels: dict[str, ChannelInfo],
+    now: datetime,
+    activities: dict[str, ChannelActivity] | None = None,
+) -> list[dict[str, Any]]:
     items = []
     for video in videos:
         channel = channels.get(video.channel_id)
@@ -153,19 +167,28 @@ def render_items(videos, rows, channels, now, activities=None):
 
 
 class SearchService:
-    def __init__(self, db, adapter, settings, *, clock=utc_now):
+    def __init__(
+        self,
+        db: Session,
+        adapter: YouTubeAdapter,
+        settings: Settings,
+        *,
+        clock: Callable[[], datetime] = utc_now,
+    ) -> None:
         self.db, self.adapter, self.settings, self.clock = db, adapter, settings, clock
         self.cache = EntityCache(settings, clock)
         self.search_cache = SearchResultCache(settings, clock)
 
-    def spent(self, search_id):
+    def spent(self, search_id: str) -> int:
         return self.db.scalar(
             select(func.coalesce(func.sum(QuotaUsage.units), 0)).where(
                 QuotaUsage.search_id == search_id
             )
         )
 
-    async def result_items(self, row, *, cache_only):
+    async def result_items(
+        self, row: SearchCache, *, cache_only: bool
+    ) -> tuple[list[dict[str, Any]], list[str]]:
         lookup = await fetch_details(
             self.db,
             self.adapter,
@@ -182,7 +205,13 @@ class SearchService:
             lookup.videos, lookup.rows, channels, self.clock(), activities
         ), lookup.warnings
 
-    async def execute(self, conditions, *, on_new_search=lambda: None, user_id=None):
+    async def execute(
+        self,
+        conditions: SearchConditions,
+        *,
+        on_new_search: Callable[[], None] = lambda: None,
+        user_id: int | None = None,
+    ) -> dict[str, Any]:
         now, db = self.clock(), self.db
         row = self.search_cache.get(db, conditions.data)
         if row is not None:
@@ -247,7 +276,7 @@ class SearchService:
             None,
         )
 
-        def channel_results(video):
+        def channel_results(video: VideoInfo) -> Iterator[fv.FilterResult]:
             if video.channel_id not in channels and first_channel_filter:
                 yield fv.FilterResult(first_channel_filter, False, "HIDDEN_VALUE")
             else:
@@ -302,7 +331,14 @@ class SearchService:
         record_search(db, user_id, conditions.data, len(items), now)
         return response
 
-    def response(self, row, page, cached, spent, extra_warnings=()):
+    def response(
+        self,
+        row: SearchCache,
+        page: dict[str, Any],
+        cached: bool,
+        spent: int,
+        extra_warnings: Iterable[str] = (),
+    ) -> dict[str, Any]:
         now = self.clock()
         used = used_units(self.db, now)
         return {
@@ -321,7 +357,9 @@ class SearchService:
             "page": page,
         }
 
-    async def all_results(self, search_id, *, cache_only=True):
+    async def all_results(
+        self, search_id: str, *, cache_only: bool = True
+    ) -> tuple[list[dict[str, Any]], list[str]]:
         """Load the complete cached result for analytics and exports."""
         row = self.db.get(SearchCache, search_id)
         if row is None or row.expires_at <= to_utc(self.clock()):
@@ -332,7 +370,7 @@ class SearchService:
             )
         return await self.result_items(row, cache_only=cache_only)
 
-    async def results(self, search_id, **paging):
+    async def results(self, search_id: str, **paging: Any) -> dict[str, Any]:
         # Validate query even for empty results.
         paginate([], **paging)
         items, warnings = await self.all_results(search_id, cache_only=False)
@@ -343,15 +381,19 @@ class SearchService:
 
 
 def get_service(
-    request: Request, db: Session = Depends(get_db), adapter=Depends(get_youtube)
-):
+    request: Request,
+    db: Session = Depends(get_db),
+    adapter: YouTubeAdapter = Depends(get_youtube),
+) -> SearchService:
     return SearchService(
         db, adapter, request.app.state.settings, clock=request.app.state.clock
     )
 
 
 @router.post("/estimate")
-def estimate_search(body: dict, service=Depends(get_service)):
+def estimate_search(
+    body: dict[str, Any], service: SearchService = Depends(get_service)
+) -> dict[str, Any]:
     conditions = normalize(body, now=service.clock())
     return estimate(
         service.db, conditions, service.search_cache, service.settings, service.clock()
@@ -359,7 +401,11 @@ def estimate_search(body: dict, service=Depends(get_service)):
 
 
 @router.post("")
-def execute_search(body: dict, request: Request, service=Depends(get_service)):
+def execute_search(
+    body: dict[str, Any],
+    request: Request,
+    service: SearchService = Depends(get_service),
+) -> dict[str, Any]:
     # A sync route keeps the complete Session lifecycle on its worker thread.
     user = current_user(request, service.db)
     return asyncio.run(
@@ -378,8 +424,8 @@ def search_results(
     size: int = 20,
     sort: str = "publishedAt",
     order: str = "desc",
-    service=Depends(get_service),
-):
+    service: SearchService = Depends(get_service),
+) -> dict[str, Any]:
     return asyncio.run(
         service.results(search_id, page=page, size=size, sort=sort, order=order)
     )

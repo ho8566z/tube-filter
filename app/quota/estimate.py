@@ -1,9 +1,23 @@
 """FNC-S-002: cache-aware maximum cost, with no upstream I/O."""
 
+from datetime import datetime
+from typing import Any
+
+from sqlalchemy.orm import Session
+
+from app.cache.search_cache import SearchResultCache
+from app.config import Settings
 from app.quota.status import used_units
+from app.search.conditions import SearchConditions
 
 
-def estimate(db, conditions, search_cache, settings, now):
+def estimate(
+    db: Session,
+    conditions: SearchConditions,
+    search_cache: SearchResultCache,
+    settings: Settings,
+    now: datetime,
+) -> dict[str, Any]:
     cached = search_cache.get(db, conditions.data) is not None
     cost = (
         0

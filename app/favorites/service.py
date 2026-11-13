@@ -2,6 +2,7 @@
 
 import asyncio
 import re
+from typing import Any
 
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import delete, func, select
@@ -16,18 +17,20 @@ from app.search.conditions import invalid
 from app.search.details import fetch_details
 from app.search.service import render_items
 from app.users.auth import current_user
-from app.youtube.adapter import get_youtube
+from app.youtube.adapter import YouTubeAdapter, get_youtube
 
 router = APIRouter(prefix="/api/v1/favorites")
 
 
-def validate_id(video_id):
+def validate_id(video_id: str) -> None:
     if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
         raise DomainError("INVALID_VIDEO_ID", "영상 ID가 올바르지 않습니다.")
 
 
 @router.put("/{video_id}", status_code=204)
-def add_favorite(video_id: str, request: Request, db: Session = Depends(get_db)):
+def add_favorite(
+    video_id: str, request: Request, db: Session = Depends(get_db)
+) -> Response:
     validate_id(video_id)
     uid = current_user(request, db).id
     if db.get(FavoriteVideo, (uid, video_id)) is None:
@@ -50,7 +53,9 @@ def add_favorite(video_id: str, request: Request, db: Session = Depends(get_db))
 
 
 @router.delete("/{video_id}", status_code=204)
-def remove_favorite(video_id: str, request: Request, db: Session = Depends(get_db)):
+def remove_favorite(
+    video_id: str, request: Request, db: Session = Depends(get_db)
+) -> Response:
     validate_id(video_id)
     db.execute(
         delete(FavoriteVideo).where(
@@ -68,8 +73,8 @@ def list_favorites(
     page: int = 0,
     size: int = 20,
     db: Session = Depends(get_db),
-    adapter=Depends(get_youtube),
-):
+    adapter: YouTubeAdapter = Depends(get_youtube),
+) -> dict[str, Any]:
     if page < 0 or size not in (10, 20, 50):
         invalid("page" if page < 0 else "size")
     uid = current_user(request, db).id

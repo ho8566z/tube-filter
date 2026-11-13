@@ -6,9 +6,10 @@ from pathlib import Path
 
 from fastapi import Request
 from sqlalchemy import DateTime, Engine, create_engine, event
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import Dialect, make_url
+from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.orm import DeclarativeBase, Session
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import ConnectionPoolEntry, StaticPool
 from sqlalchemy.types import TypeDecorator
 
 from app.time_utils import to_utc
@@ -24,10 +25,14 @@ class UTCDateTime(TypeDecorator[datetime]):
     impl = DateTime
     cache_ok = True
 
-    def process_bind_param(self, value, dialect):
+    def process_bind_param(
+        self, value: datetime | None, dialect: Dialect
+    ) -> datetime | None:
         return to_utc(value).replace(tzinfo=None) if value is not None else None
 
-    def process_result_value(self, value, dialect):
+    def process_result_value(
+        self, value: datetime | None, dialect: Dialect
+    ) -> datetime | None:
         return to_utc(value) if value is not None else None
 
 
@@ -44,7 +49,9 @@ def create_db_engine(database_url: str) -> Engine:
     if url.get_backend_name() == "sqlite":
 
         @event.listens_for(engine, "connect")
-        def enable_foreign_keys(connection, _record):
+        def enable_foreign_keys(
+            connection: DBAPIConnection, _record: ConnectionPoolEntry
+        ) -> None:
             cursor = connection.cursor()
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()

@@ -1,6 +1,6 @@
 """Pacific calendar dates and DST-aware daily reset times."""
 
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from app.time_utils import to_utc
@@ -8,7 +8,7 @@ from app.time_utils import to_utc
 PT = ZoneInfo("America/Los_Angeles")  # Windows엔 시스템 tz DB가 없어 tzdata 패키지 사용
 
 
-def pt_date(now: datetime):
+def pt_date(now: datetime) -> date:
     return to_utc(now).astimezone(PT).date()
 
 

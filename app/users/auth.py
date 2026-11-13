@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, SecretStr
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.db import get_db
 from app.errors import DomainError, domain_error_handler
@@ -25,7 +26,7 @@ class Login(BaseModel):
     password: SecretStr
 
 
-def current_user(request, db):
+def current_user(request: Request, db: Session) -> AppUser | None:
     identity = request.session.get("user")
     if not identity:
         return None
@@ -38,14 +39,16 @@ def current_user(request, db):
 
 
 @router.get("/csrf")
-def csrf(request: Request, response: Response):
+def csrf(request: Request, response: Response) -> dict[str, str]:
     response.headers["Cache-Control"] = "no-store"
     token = request.session.setdefault("csrf", secrets.token_urlsafe(32))
     return {"csrfToken": token}
 
 
 @router.post("/login")
-def login(body: Login, request: Request, db: Session = Depends(get_db)):
+def login(
+    body: Login, request: Request, db: Session = Depends(get_db)
+) -> dict[str, str]:
     user = db.scalar(select(AppUser).where(AppUser.login_id == body.loginId.lower()))
     matches = password_matches(
         body.password.get_secret_value(), user.password if user else DUMMY_HASH
@@ -68,7 +71,7 @@ def login(body: Login, request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/logout", status_code=204)
-def logout(request: Request):
+def logout(request: Request) -> Response:
     request.session.clear()
     return Response(status_code=204)
 
@@ -76,10 +79,10 @@ def logout(request: Request):
 class SecurityMiddleware:
     """Load settings after lifespan startup, then use Starlette's signed cookies."""
 
-    def __init__(self, app):
+    def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             return await self.app(scope, receive, send)
         settings = scope["app"].state.settings
@@ -93,7 +96,7 @@ class SecurityMiddleware:
         )
         await sessions(scope, receive, send)
 
-    async def enforce(self, scope, receive, send):
+    async def enforce(self, scope: Scope, receive: Receive, send: Send) -> None:
         request = Request(scope)
         now = request.app.state.clock()
         active = request.session.get("activeAt")

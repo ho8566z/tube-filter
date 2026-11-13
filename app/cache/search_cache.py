@@ -32,7 +32,9 @@ def condition_hash(conditions: dict) -> str:
 class SearchResultCache:
     """Caller owns the session and transaction. Expiry is exclusive."""
 
-    def __init__(self, settings: Settings, clock: Callable[[], datetime] = utc_now):
+    def __init__(
+        self, settings: Settings, clock: Callable[[], datetime] = utc_now
+    ) -> None:
         self.ttl = timedelta(hours=settings.cache_search_ttl_hours)
         self.clock = clock
 

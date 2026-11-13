@@ -1,7 +1,10 @@
 """FNC-V-002: paired public statistics, limited to 500 points."""
 
+from collections.abc import Iterable
+from typing import Any
 
-def scatter(items):
+
+def scatter(items: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
             "videoId": item["videoId"],

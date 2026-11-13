@@ -3,6 +3,7 @@
 from collections.abc import Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, fields
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -39,7 +40,7 @@ def fetch_channels(
     missing = [key for key in ids if key not in found]
     batches = [missing[start : start + 50] for start in range(0, len(missing), 50)]
 
-    def fetch(batch):
+    def fetch(batch: list[str]) -> dict[str, Any] | DomainError:
         try:
             return adapter.request(
                 "channels.list",

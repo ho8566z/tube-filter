@@ -3,9 +3,10 @@
 import json
 from collections.abc import Callable, Sequence
 from datetime import datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app.config import Settings
 from app.models import ChannelCache, VideoCache
@@ -16,12 +17,20 @@ from app.time_utils import to_utc, utc_now
 class EntityCache:
     """Return fresh hits only; caller fetches misses and commits writes."""
 
-    def __init__(self, settings: Settings, clock: Callable[[], datetime] = utc_now):
+    def __init__(
+        self, settings: Settings, clock: Callable[[], datetime] = utc_now
+    ) -> None:
         self.ttl = timedelta(hours=settings.cache_stats_ttl_hours)
         self.max_age = timedelta(days=settings.cache_max_days)
         self.clock = clock
 
-    def _get(self, db: Session, model, key, ids: Sequence[str]) -> dict:
+    def _get(
+        self,
+        db: Session,
+        model: type[Any],
+        key: InstrumentedAttribute[Any],
+        ids: Sequence[str],
+    ) -> dict[str, Any]:
         if not ids:
             return {}
         now = to_utc(self.clock())

@@ -2,6 +2,8 @@
 
 import json
 import logging
+from datetime import datetime
+from typing import Any
 
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import delete, select
@@ -17,7 +19,13 @@ router = APIRouter(prefix="/api/v1/history")
 logger = logging.getLogger(__name__)
 
 
-def record_search(db, user_id, conditions, result_count, now):
+def record_search(
+    db: Session,
+    user_id: int | None,
+    conditions: dict[str, Any],
+    result_count: int,
+    now: datetime,
+) -> None:
     """Search has succeeded; a history failure must not replace its response."""
     if user_id is None:
         return
@@ -54,7 +62,9 @@ def record_search(db, user_id, conditions, result_count, now):
 
 
 @router.get("")
-def list_history(request: Request, db: Session = Depends(get_db)):
+def list_history(
+    request: Request, db: Session = Depends(get_db)
+) -> list[dict[str, Any]]:
     rows = db.scalars(
         select(SearchHistory)
         .where(SearchHistory.user_id == current_user(request, db).id)
@@ -74,7 +84,9 @@ def list_history(request: Request, db: Session = Depends(get_db)):
 
 
 @router.delete("/{history_id}", status_code=204)
-def delete_history(history_id: str, request: Request, db: Session = Depends(get_db)):
+def delete_history(
+    history_id: str, request: Request, db: Session = Depends(get_db)
+) -> Response:
     uid = current_user(request, db).id
     query = delete(SearchHistory).where(SearchHistory.user_id == uid)
     if history_id != "all":
