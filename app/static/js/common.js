@@ -17,6 +17,18 @@ window.tubeFilter = {
     }
     return data;
   },
+
+  // 파일 응답(CSV 등)도 이 모듈을 거친다. 실패 응답은 api()와 같은 모양의 오류로 던진다.
+  async download(path, failureMessage = "파일을 내려받지 못했습니다.") {
+    const response = await fetch(path, { credentials: "same-origin" });
+    if (!response.ok) {
+      const error = new Error(failureMessage);
+      error.status = response.status;
+      error.data = await response.json();
+      throw error;
+    }
+    return response.blob();
+  },
 };
 
 window.tubeFilter.refreshQuota = async () => {
